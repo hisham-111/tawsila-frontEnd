@@ -200,7 +200,14 @@ export default function CustomerTracking() {
 
                     {/* 🆕 منطقة عرض الوقت والمسافة المقدرة */}
                     {(driverLocation && eta && distance) && (
-                        <Box sx={{ mt: 2, display: 'flex', justifyContent: 'space-between', flexWrap: 'wrap' }}>
+                        <Box sx={{
+                            mt: 2,
+                            marginLeft: { xs: '1rem', sm: '3rem', md: '5rem' },
+                            marginRight: { xs: '1rem', sm: '3rem', md: '5rem' },
+                            display: 'flex',
+                            justifyContent: 'space-between',
+                            flexWrap: 'wrap'
+                        }}>
                             <Typography variant="body1" fontWeight="600" color="primary.main" sx={{ fontSize: { xs: "0.8rem", sm: "1rem" } }}>
                                  Estimated Time ⏱️ : {eta}
                             </Typography>
