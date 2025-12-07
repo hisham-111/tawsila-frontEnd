@@ -454,7 +454,7 @@ const startTracking = () => {
             const { latitude, longitude, accuracy } = pos.coords; 
             
             // 💡 FILTER: Skip sending updates if accuracy is worse than 100 meters
-            if (accuracy > 1200) {
+            if (accuracy > 100) {
                 setStatusMsg(`Warning: Low accuracy (${accuracy.toFixed(0)}m). Waiting for better GPS signal.`);
                 return; // Skip sending inaccurate updates
             }
