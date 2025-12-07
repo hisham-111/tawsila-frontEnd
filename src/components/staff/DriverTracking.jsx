@@ -71,7 +71,7 @@ const homeIcon = new L.divIcon({
     popupAnchor: [0, -36],
 });
 
-const SOCKET_URL = import.meta.env.VITE_BACKEND_URL || "http://localhost:5000";
+const SOCKET_URL = import.meta.env.VITE_BACKEND_URL || "https://tawsila-backend-0shs.onrender.com";
 const userRole = 'driver';
 
 const driverZIndex = userRole === 'driver' ? 1000 : 10;
