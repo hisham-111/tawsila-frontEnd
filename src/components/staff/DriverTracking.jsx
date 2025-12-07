@@ -107,6 +107,9 @@ export default function DriverTracking({ initialOrderNumber, driverId }) {
     const [socketConnected, setSocketConnected] = useState(false);
     // حول السطر 104 في قسم تهيئة الحالة (STATE INITIALIZATION)
     const [customerPos, setCustomerPos] = useState(null);
+    const [position, setPosition] = useState(null);
+    const [accuracy, setAccuracy] = useState(null);
+    const [error, setError] = useState(null);
     
     // حالة للطلب اللحظي (Modal notification)
     const [newOrder, setNewOrder] = useState(null);    
@@ -171,6 +174,45 @@ const fetchCustomerLocation = useCallback(async (orderId) => {
             setStatusMsg(`Error: Failed to fetch orders. ${error.message}`);
         }
     };
+
+
+    const watchPosition = useCallback(() => {
+  if (!navigator.geolocation) {
+    setError("Geolocation not supported by your browser");
+    return;
+  }
+
+  const watchId = navigator.geolocation.watchPosition(
+    (pos) => {
+      const { latitude, longitude, accuracy } = pos.coords;
+      setAccuracy(accuracy);
+
+      // تجاهل المواقع منخفضة الدقة (أكثر من 30 متر)
+      if (accuracy <= 30) {
+        setPosition({ lat: latitude, lng: longitude });
+      } else {
+        console.warn(`Low accuracy (${accuracy}m), waiting for better GPS...`);
+      }
+    },
+    (err) => {
+      console.error(err);
+      setError(err.message);
+    },
+    { enableHighAccuracy: true, maximumAge: 0, timeout: 10000 }
+  );
+
+  return () => navigator.geolocation.clearWatch(watchId);
+}, []);
+
+
+useEffect(() => {
+  // استدعاء watchPosition وتخزين الـ cleanup
+  const cleanup = watchPosition(); 
+
+  // تنظيف الـ watcher عند فك المكون
+  return cleanup;
+}, [watchPosition]);
+
     
     // يتم استدعاء دالة الجلب عند تحميل المكون
     useEffect(() => {
@@ -238,14 +280,7 @@ const fetchCustomerLocation = useCallback(async (orderId) => {
 
   
 
-// useEffect(() => {
-//     // 1. متى يجب أن يتم الجلب؟ عندما يتوفر رقم الطلب الحالي
-//     if (currentOrderId && isOrderAccepted) {
-        
-//         // 🚀 استدعاء الدالة المساعدة مباشرةً باستخدام رقم الطلب
-//         fetchCustomerLocation(currentOrderId);
-//     }
-// }, [currentOrderId, isOrderAccepted, fetchCustomerLocation]);
+
 
 useEffect(() => {
     // Fetches static customer coordinates when an order is accepted
