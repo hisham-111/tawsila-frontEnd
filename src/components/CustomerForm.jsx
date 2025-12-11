@@ -7,6 +7,7 @@ import { OpenStreetMapProvider, GeoSearchControl, EsriProvider } from "leaflet-g
 import L from "leaflet";
 import api from "./api"; 
 import Logo from "../assets/Logo.png"; 
+import Welcome from "../components/WelcomeCustomer"
 
 // --- إصلاح أيقونات Leaflet ---
 delete L.Icon.Default.prototype._getIconUrl;
@@ -93,53 +94,6 @@ function SearchControl({ setPosition, setForm }) {
     return null;
 }
 
-// function SearchControl({ setPosition, setForm }) {
-//     const map = useMap();
-
-//     useEffect(() => {
-//         const provider = new EsriProvider({
-//             params: {
-//                 // تحديد منطقة البحث لزيادة الدقة
-//                 bbox: '35.0,33.0,36.7,34.8' 
-//             }
-//         });
-
-//         const searchControl = new GeoSearchControl({
-//             provider, style: "bar", showMarker: false, retainZoomLevel: false,
-//             animateZoom: true, autoClose: true, searchLabel: "Enter area in Tripoli...", keepResult: true,
-//         });
-
-//         map.addControl(searchControl);
-
-//         map.on("geosearch/showlocation", (result) => {
-//             const { x, y, label } = result.location;
-            
-//             // استخدام القاعدة التجريبية: القيمة الأصغر هي Latitude (34.xx)
-//             let latValue, lngValue;
-            
-//             if (parseFloat(x) < parseFloat(y)) {
-//                 latValue = parseFloat(x);
-//                 lngValue = parseFloat(y);
-//             } else {
-//                 latValue = parseFloat(y);
-//                 lngValue = parseFloat(x);
-//             }
-
-//             const newPos = { lat: latValue, lng: lngValue };
-            
-//             setPosition(newPos);
-//             setForm((prev) => ({ ...prev, customer_address: label }));
-//             map.flyTo(newPos, 16); 
-//         });
-
-//         return () => map.removeControl(searchControl);
-//     }, [map, setPosition, setForm]);
-
-//     return null;
-// }
-
-// 3. مكون المؤشر
-
 
 function LocationSelector({ position, setPosition }) {
     const markerRef = useRef(null); 
@@ -180,6 +134,7 @@ export default function CustomerForm() {
     const [position, setPosition] = useState(null);
     const [orderNumber, setOrderNumber] = useState("");
     const [open, setOpen] = useState(false);
+    const [showWelcome, setShowWelcome] = useState(true);
 
     const itemOptions = ["Electronics", "Clothes", "Food Delivery", "Documents", "Furniture", "Other"];
 
@@ -217,8 +172,24 @@ export default function CustomerForm() {
         }
     };
 
+
+    useEffect(() => {
+    const timer = setTimeout(() => {
+        setShowWelcome(false);
+    }, 3000);
+
+    return () => clearTimeout(timer);
+}, []);
+
+
     return (
-        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4 }}>
+
+        <>
+        {showWelcome ? (
+            <Welcome />
+        ) : (
+
+ <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4 }}>
             <Paper elevation={6} sx={{ padding: 3, maxWidth: 600, margin: "20px auto", borderRadius: 3 }}>
                 
                 <img src={Logo} alt="Logo" style={{ width: 90, height: 90, display: "block", margin: "0 auto 8px auto" }} />
@@ -271,7 +242,12 @@ export default function CustomerForm() {
                     <Button variant="outlined" color="secondary" sx={{ ml: 1 }} onClick={() => setOpen(false)}>Close</Button>
                 </Paper>
             </Modal>
-        </motion.div>
+          </motion.div>
+
+        )}
+        
+       
+        </>
     );
 }
 
