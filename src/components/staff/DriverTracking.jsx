@@ -427,123 +427,180 @@ function MapCentering({ driverPos, customerPos }) {
     }
 };
 
-    // const startTracking = () => {
-    //     if (!navigator.geolocation) {
-    //         alert("Your device does not support GPS.");
-    //         return;
-    //     }
-    //     if (!isOrderAccepted) {
-    //         alert("Please accept an order first.");
-    //         return;
-    //     }
-
-    //     setIsTracking(true);
-    //     setStatusMsg("Sending live location…");
-
-    //     const orderToTrack = currentOrderId; // نستخدم currentOrderId الذي تم تهيئته
-
-    //     watchIdRef.current = navigator.geolocation.watchPosition(
-    //         (pos) => {
-    //             const { latitude, longitude } = pos.coords;
-    //             setCurrentPos([latitude, longitude]);
-
-    //             if (socketRef.current?.connected && orderToTrack) {
-    //                 socketRef.current.emit("update-location", {
-    //                     orderId: orderToTrack,
-    //                     driverId,
-    //                     lat: latitude,
-    //                     lng: longitude,
-    //                 });
-    //             }
-    //         },
-    //         (err) => setStatusMsg("GPS Error: " + err.message),
-    //         { enableHighAccuracy: true, maximumAge: 0, timeout: 8000 }
-    //     );
-    // };
-
-    // 💡 First step: only open the confirmation dialog
   
   
+  
+// const startTracking = () => {
+//     if (!navigator.geolocation) {
+//         alert("Your device does not support GPS.");
+//         return;
+//     }
+//     if (!isOrderAccepted) {
+//         alert("Please accept an order first.");
+//         return;
+//     }
+
+//     // 1. Clear any previous tracking instance before starting a new one (safety)
+//     if (watchIdRef.current) {
+//         navigator.geolocation.clearWatch(watchIdRef.current);
+//     }
+    
+//     setIsTracking(true);
+//     setStatusMsg("Sending live location…");
+
+//     const orderToTrack = currentOrderId;
+
+//     watchIdRef.current = navigator.geolocation.watchPosition(
+//         (pos) => {
+//             const { latitude, longitude, accuracy } = pos.coords; 
+            
+//             // 💡 FILTER: Skip sending updates if accuracy is worse than 100 meters
+//             if (accuracy > 1000) {
+//                 setStatusMsg(`Warning: Low accuracy (${accuracy.toFixed(0)}m). Waiting for better GPS signal.`);
+//                 return; // Skip sending inaccurate updates
+//             }
+
+//             setCurrentPos([latitude, longitude]);
+
+//             if (socketRef.current?.connected && orderToTrack) {
+//                 socketRef.current.emit("update-location", {
+//                     orderId: orderToTrack,
+//                     driverId,
+//                     lat: latitude,
+//                     lng: longitude,
+//                     accuracy: accuracy, 
+//                 });
+//             }
+//         },
+//         // 2. 🚨 Enhanced Error Handling Callback
+//         (err) => {
+//             let errorMsg = "GPS Error: ";
+//             switch (err.code) {
+//                 case err.PERMISSION_DENIED:
+//                     errorMsg += "Access Denied. Please check browser permissions.";
+//                     break;
+//                 case err.POSITION_UNAVAILABLE:
+//                     errorMsg += "Position Unavailable. Check GPS/Network signal.";
+//                     break;
+//                 case err.TIMEOUT:
+//                     // Timeout often means the device couldn't get a high-accuracy fix in time.
+//                     errorMsg += "Timeout (5s). Signal too weak or device busy."; // ✅ CORRECTED TIMEOUT MESSAGE
+//                     break;
+//                 default:
+//                     errorMsg += err.message;
+//             }
+//             console.error("Geolocation Error:", errorMsg, err);
+//             setStatusMsg(errorMsg);
+            
+//             // 🛑 Stop tracking on fatal/persistent errors
+//             if (watchIdRef.current) {
+//                  navigator.geolocation.clearWatch(watchIdRef.current);
+//                  setIsTracking(false);
+//                  watchIdRef.current = null;
+//                  alert("Location tracking stopped due to error: " + errorMsg);
+//             }
+//         },
+//         // 3. ⚙️ Optimized Configuration Options
+//         { 
+//             enableHighAccuracy: true, 
+//             maximumAge: 0, 
+//             timeout: 20000 
+//         } 
+//     );
+// };
+  
+   
+
 const startTracking = () => {
     if (!navigator.geolocation) {
-        alert("Your device does not support GPS.");
+        alert("Your device does not support geolocation.");
         return;
     }
+
     if (!isOrderAccepted) {
         alert("Please accept an order first.");
         return;
     }
 
-    // 1. Clear any previous tracking instance before starting a new one (safety)
+    // تنظيف أي تتبع سابق
     if (watchIdRef.current) {
         navigator.geolocation.clearWatch(watchIdRef.current);
+        watchIdRef.current = null;
     }
-    
+
     setIsTracking(true);
-    setStatusMsg("Sending live location…");
+    setStatusMsg("📡 Initializing location tracking...");
 
     const orderToTrack = currentOrderId;
 
+    // 🧠 تحديد نوع الجهاز
+    const isBrowser = !/Mobi|Android/i.test(navigator.userAgent);
+
     watchIdRef.current = navigator.geolocation.watchPosition(
         (pos) => {
-            const { latitude, longitude, accuracy } = pos.coords; 
-            
-            // 💡 FILTER: Skip sending updates if accuracy is worse than 100 meters
-            if (accuracy > 1000) {
-                setStatusMsg(`Warning: Low accuracy (${accuracy.toFixed(0)}m). Waiting for better GPS signal.`);
-                return; // Skip sending inaccurate updates
-            }
+            const { latitude, longitude, accuracy } = pos.coords;
 
+            // تحديث الموقع محليًا دائمًا (حتى لو كانت الدقة ضعيفة)
             setCurrentPos([latitude, longitude]);
 
+            // 🧠 رسائل ذكية حسب الدقة (بدون Warning)
+            if (accuracy <= 100) {
+                setStatusMsg("📡 High accuracy tracking");
+            } else if (accuracy <= 3000) {
+                setStatusMsg("📍 Standard tracking mode");
+            } else if (isBrowser) {
+                setStatusMsg("🖥️ Browser location mode (approximate)");
+            } else {
+                setStatusMsg("📡 Low GPS signal, tracking continues");
+            }
+
+            // 🚀 إرسال الموقع دائمًا (لا نوقف الإرسال)
             if (socketRef.current?.connected && orderToTrack) {
                 socketRef.current.emit("update-location", {
                     orderId: orderToTrack,
                     driverId,
                     lat: latitude,
                     lng: longitude,
-                    accuracy: accuracy, 
+                    accuracy,
+                    source: isBrowser ? "browser" : "gps",
+                    timestamp: Date.now(),
                 });
             }
         },
-        // 2. 🚨 Enhanced Error Handling Callback
+
+        // ❌ أخطاء التتبع
         (err) => {
-            let errorMsg = "GPS Error: ";
+            let errorMsg = "Location error: ";
+
             switch (err.code) {
                 case err.PERMISSION_DENIED:
-                    errorMsg += "Access Denied. Please check browser permissions.";
+                    errorMsg += "Permission denied. Please allow location access.";
                     break;
                 case err.POSITION_UNAVAILABLE:
-                    errorMsg += "Position Unavailable. Check GPS/Network signal.";
+                    errorMsg += "Position unavailable.";
                     break;
                 case err.TIMEOUT:
-                    // Timeout often means the device couldn't get a high-accuracy fix in time.
-                    errorMsg += "Timeout (5s). Signal too weak or device busy."; // ✅ CORRECTED TIMEOUT MESSAGE
+                    errorMsg += "Location request timed out.";
                     break;
                 default:
                     errorMsg += err.message;
             }
-            console.error("Geolocation Error:", errorMsg, err);
+
+            console.error("Geolocation Error:", err);
             setStatusMsg(errorMsg);
-            
-            // 🛑 Stop tracking on fatal/persistent errors
-            if (watchIdRef.current) {
-                 navigator.geolocation.clearWatch(watchIdRef.current);
-                 setIsTracking(false);
-                 watchIdRef.current = null;
-                 alert("Location tracking stopped due to error: " + errorMsg);
-            }
         },
-        // 3. ⚙️ Optimized Configuration Options
-        { 
-            enableHighAccuracy: true, 
-            maximumAge: 0, 
-            timeout: 20000 
-        } 
+
+        // ⚙️ إعدادات محسّنة للويب والموبايل
+        {
+            enableHighAccuracy: !isBrowser, // GPS فقط للموبايل
+            maximumAge: isBrowser ? 30000 : 0,
+            timeout: isBrowser ? 30000 : 20000,
+        }
     );
 };
-  
-    const stopTracking = () => {
+
+
+const stopTracking = () => {
         setIsConfirmingStop(true);
     };
     
