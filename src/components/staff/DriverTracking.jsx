@@ -232,7 +232,15 @@ useEffect(() => {
             return;
         }
 
-        const socket = io(SOCKET_URL);
+        // const socket = io(SOCKET_URL);
+        const socket = io(SOCKET_URL, {
+        transports: ["websocket"], // 🔥 يحل مشكلة الهاتف
+        withCredentials: true,
+        reconnection: true,
+        reconnectionAttempts: 5,
+        timeout: 20000,
+        });
+
         socketRef.current = socket;
 
         socket.on("connect", () => {

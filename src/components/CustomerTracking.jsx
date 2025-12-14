@@ -87,7 +87,14 @@ export default function CustomerTracking() {
 
     useEffect(() => {
         if (!orderId) return;
-        const socket = io(SOCKET_URL);
+        // const socket = io(SOCKET_URL);
+        const socket = io(SOCKET_URL, {
+        transports: ["websocket"], // 🔥 أهم سطر للموبايل
+        withCredentials: true,
+        reconnection: true,
+        reconnectionAttempts: 5,
+        timeout: 20000,
+        });
         socketRef.current = socket;
         socket.on("connect", () => socket.emit("join-order", orderId));
 
