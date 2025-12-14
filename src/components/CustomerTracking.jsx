@@ -89,7 +89,7 @@ export default function CustomerTracking() {
         if (!orderId) return;
         // const socket = io(SOCKET_URL);
         const socket = io(SOCKET_URL, {
-        transports: ["websocket"], // 🔥 أهم سطر للموبايل
+        transports: ["websocket", "polling"], // 🔥 أهم سطر للموبايل
         withCredentials: true,
         reconnection: true,
         reconnectionAttempts: 5,

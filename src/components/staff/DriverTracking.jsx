@@ -234,7 +234,7 @@ useEffect(() => {
 
         // const socket = io(SOCKET_URL);
         const socket = io(SOCKET_URL, {
-        transports: ["websocket"], // 🔥 يحل مشكلة الهاتف
+        transports: ["websocket", "polling"], // 🔥 يحل مشكلة الهاتف
         withCredentials: true,
         reconnection: true,
         reconnectionAttempts: 5,
