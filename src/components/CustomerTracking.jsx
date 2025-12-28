@@ -133,8 +133,16 @@ export default function CustomerTracking() {
                         destination: customerLocation,
                     });
                     const routeData = response.data;
-                    setDistance(routeData?.distance || "N/A");
-                    setEta(routeData?.duration || "N/A");
+                      console.log("ROUTE INFO RESPONSE:", response.data);
+
+
+                    // setDistance(routeData?.distance || "N/A");
+                   setDistance(`${(routeData.distance / 1000).toFixed(2)} km`);
+setEta(`${Math.round(routeData.duration / 60)} min`);
+
+
+
+
                 } catch (err) {
                     console.error(err);
                     setDistance("N/A");
