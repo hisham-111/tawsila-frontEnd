@@ -1128,14 +1128,6 @@ const fetchDetailedAddress = async (lat, lng) => {
   // =====================
   // MAP CENTERING
   // =====================
-  // function MapCentering({ driverPos, customerPos }) {
-  //   const map = useMap();
-  //   useEffect(() => {
-  //     if (driverPos && customerPos) map.fitBounds([driverPos, [customerPos.lat, customerPos.lng]], { padding: [50, 50], maxZoom: 16 });
-  //     else if (driverPos) map.setView(driverPos, map.getZoom() < 14 ? 14 : map.getZoom());
-  //   }, [map, driverPos, customerPos]);
-  //   return null;
-  // }
 
   function MapCentering({ driverPos, customerPos }) {
   const map = useMap();
@@ -1155,40 +1147,9 @@ const fetchDetailedAddress = async (lat, lng) => {
   // =====================
   // START TRACKING
   // =====================
-  // const startTracking = () => {
-  //   if (!navigator.geolocation || !isOrderAccepted) return;
-  //   if (watchIdRef.current) navigator.geolocation.clearWatch(watchIdRef.current);
+ 
 
-  //   setIsTracking(true);
-  //   setStatusMsg("📡 Initializing location tracking...");
-
-  //   watchIdRef.current = navigator.geolocation.watchPosition(
-  //     async (pos) => {
-  //       const { latitude, longitude, accuracy } = pos.coords;
-  //       setCurrentPos({ lat: latitude, lng: longitude });
-
-  //       if (accuracy > 200) setStatusMsg("📡 High accuracy tracking");
-
-  //       if (socketRef.current?.connected && currentOrderId) {
-  //         socketRef.current.emit("update-location", {
-  //           orderId: currentOrderId,
-  //           driverId,
-  //           lat: latitude,
-  //           lng: longitude,
-  //           accuracy,
-  //           timestamp: Date.now(),
-  //         });
-  //       }
-
-  //       const addr = await fetchDetailedAddress(latitude, longitude);
-  //       if (addr) setCurrentAddress(addr);
-  //     },
-  //     (err) => setStatusMsg("Location error: " + err.message),
-  //     { enableHighAccuracy: true, maximumAge: 0, timeout: 10000 }
-  //   );
-  // };
-
-//   const startTracking = () => {
+// const startTracking = () => {
 //   if (!navigator.geolocation || !isOrderAccepted) return;
 
 //   if (watchIdRef.current) {
@@ -1198,32 +1159,39 @@ const fetchDetailedAddress = async (lat, lng) => {
 //   setIsTracking(true);
 //   setStatusMsg("📡 Initializing GPS… waiting for good accuracy");
 
-//   watchIdRef.current = navigator.geolocation.watchPosition(
-//     async (pos) => {
-//       const { latitude, longitude, accuracy } = pos.coords;
+//  const isDev = !/Android|iPhone|iPad|iPod/i.test(navigator.userAgent);  // بيئة DEV على الحاسوب
 
-//       // 🛑 تجاهل أي قراءة غير منطقية
-//       if (
-//         typeof latitude !== "number" ||
-//         typeof longitude !== "number" ||
-//         accuracy == null
-//       ) {
-//         return;
+// watchIdRef.current = navigator.geolocation.watchPosition(
+//   async (pos) => {
+//     let { latitude, longitude, accuracy } = pos.coords;
+
+//     // في DEV استخدم mock location لطرابلس
+//     // if (isDev) {
+//     //   latitude = 34.4386;  // مثال: طرابلس
+//     //   longitude = 35.8495; // مثال: طرابلس
+//     //   accuracy = 50;
+//     // }
+//           if (isDev) {
+//           latitude = mockLocation.lat;
+//           longitude = mockLocation.lng;
+//           accuracy = 50;
 //       }
+//       // تجاهل القراءات غير المنطقية
+//       if (typeof latitude !== "number" || typeof longitude !== "number" || accuracy == null) return;
 
-//       // 🛑 تجاهل القراءة السيئة
-//       if (accuracy > 80) {
+//       // تجاهل القراءة إذا كانت ضعيفة جدًا (>500m)
+//       if (!isDev && accuracy > 500) {
 //         setStatusMsg(`📡 Improving GPS accuracy… (${Math.round(accuracy)}m)`);
 //         return;
 //       }
 
-//       // ✅ الآن فقط الموقع صالح
+//       // ✅ الموقع صالح
 //       const newPos = { lat: latitude, lng: longitude };
 //       setCurrentPos(newPos);
 //       setAccuracy(accuracy);
 //       setStatusMsg(`📡 GPS locked (${Math.round(accuracy)}m)`);
 
-//       // 📡 إرسال الموقع
+//       // إرسال الموقع إلى السيرفر
 //       if (socketRef.current?.connected && currentOrderId) {
 //         socketRef.current.emit("update-location", {
 //           orderId: currentOrderId,
@@ -1234,11 +1202,13 @@ const fetchDetailedAddress = async (lat, lng) => {
 //         });
 //       }
 
-//       // 📍 Reverse Geocoding (غير مؤثر على الخريطة)
+//       // جلب العنوان التفصيلي (Reverse Geocoding)
 //       try {
 //         const addr = await fetchDetailedAddress(latitude, longitude);
 //         if (addr) setCurrentAddress(addr);
-//       } catch {}
+//       } catch (err) {
+//         console.warn("Reverse geocoding failed:", err);
+//       }
 //     },
 //     (err) => {
 //       console.error("GPS error:", err);
@@ -1253,76 +1223,81 @@ const fetchDetailedAddress = async (lat, lng) => {
 // };
 
 const startTracking = () => {
-  if (!navigator.geolocation || !isOrderAccepted) return;
+  if (!isOrderAccepted || !currentOrderId) return;
 
+  // 🧠 تحديد البيئة
+  const isMobile =
+    /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+
+  // تنظيف أي تتبع سابق
   if (watchIdRef.current) {
     navigator.geolocation.clearWatch(watchIdRef.current);
   }
 
   setIsTracking(true);
-  setStatusMsg("📡 Initializing GPS… waiting for good accuracy");
+  setStatusMsg("📡 Starting location tracking...");
 
- const isDev = !/Android|iPhone|iPad|iPod/i.test(navigator.userAgent);  // بيئة DEV على الحاسوب
+  // =========================
+  // 📱 MOBILE → GPS حقيقي
+  // =========================
+  if (isMobile && navigator.geolocation) {
+    watchIdRef.current = navigator.geolocation.watchPosition(
+      async (pos) => {
+        const { latitude, longitude, accuracy } = pos.coords;
 
-watchIdRef.current = navigator.geolocation.watchPosition(
-  async (pos) => {
-    let { latitude, longitude, accuracy } = pos.coords;
+        setCurrentPos({ lat: latitude, lng: longitude });
+        setStatusMsg(`📡 GPS accuracy: ${Math.round(accuracy)}m`);
 
-    // في DEV استخدم mock location لطرابلس
-    // if (isDev) {
-    //   latitude = 34.4386;  // مثال: طرابلس
-    //   longitude = 35.8495; // مثال: طرابلس
-    //   accuracy = 50;
-    // }
-          if (isDev) {
-          latitude = mockLocation.lat;
-          longitude = mockLocation.lng;
-          accuracy = 50;
+        if (socketRef.current?.connected) {
+          socketRef.current.emit("update-location", {
+            orderId: currentOrderId,
+            driverId,
+            lat: latitude,
+            lng: longitude,
+            accuracy,
+            timestamp: Date.now(),
+          });
+        }
+      },
+      (err) => {
+        setStatusMsg("❌ GPS Error: " + err.message);
+      },
+      {
+        enableHighAccuracy: true,
+        maximumAge: 0,
+        timeout: 15000,
       }
-      // تجاهل القراءات غير المنطقية
-      if (typeof latitude !== "number" || typeof longitude !== "number" || accuracy == null) return;
+    );
 
-      // تجاهل القراءة إذا كانت ضعيفة جدًا (>500m)
-      if (!isDev && accuracy > 500) {
-        setStatusMsg(`📡 Improving GPS accuracy… (${Math.round(accuracy)}m)`);
-        return;
-      }
+    return;
+  }
 
-      // ✅ الموقع صالح
-      const newPos = { lat: latitude, lng: longitude };
-      setCurrentPos(newPos);
-      setAccuracy(accuracy);
-      setStatusMsg(`📡 GPS locked (${Math.round(accuracy)}m)`);
+  // =========================
+  // 💻 DESKTOP → Mock Movement
+  // =========================
+  setStatusMsg("🧪 Desktop mode: Simulated movement");
 
-      // إرسال الموقع إلى السيرفر
-      if (socketRef.current?.connected && currentOrderId) {
-        socketRef.current.emit("update-location", {
-          orderId: currentOrderId,
-          driverId,
-          ...newPos,
-          accuracy,
-          timestamp: Date.now(),
-        });
-      }
+  let lat = 34.4386; // طرابلس
+  let lng = 35.8495;
 
-      // جلب العنوان التفصيلي (Reverse Geocoding)
-      try {
-        const addr = await fetchDetailedAddress(latitude, longitude);
-        if (addr) setCurrentAddress(addr);
-      } catch (err) {
-        console.warn("Reverse geocoding failed:", err);
-      }
-    },
-    (err) => {
-      console.error("GPS error:", err);
-      setStatusMsg("📡 GPS error: " + err.message);
-    },
-    {
-      enableHighAccuracy: true,
-      maximumAge: 0,
-      timeout: 15000,
+  watchIdRef.current = setInterval(() => {
+    // محاكاة حركة حقيقية
+    lat += (Math.random() - 0.5) * 0.0005;
+    lng += (Math.random() - 0.5) * 0.0005;
+
+    setCurrentPos({ lat, lng });
+
+    if (socketRef.current?.connected) {
+      socketRef.current.emit("update-location", {
+        orderId: currentOrderId,
+        driverId,
+        lat,
+        lng,
+        accuracy: 20,
+        timestamp: Date.now(),
+      });
     }
-  );
+  }, 3000);
 };
 
 
