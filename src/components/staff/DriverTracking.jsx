@@ -698,35 +698,30 @@ export default function DriverTracking({ initialOrderNumber, driverId }) {
   const startTracking = () => {
   if (!isOrderAccepted || !currentOrderId) return;
 
-  // تنظيف أي Watch سابق
+  // تنظيف أي Watch أو Interval سابق
   if (watchIdRef.current) {
     if (navigator.geolocation.clearWatch) navigator.geolocation.clearWatch(watchIdRef.current);
     else clearInterval(watchIdRef.current);
   }
 
   setIsTracking(true);
-  setStatusMsg("📡 Starting location tracking...");
+  setStatusMsg("📡 Initializing location tracking...");
 
   const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+  let lastKnownPos = null; // لتخزين آخر موقع معروف بدقة
 
-  // ======= MOBILE OR GPS SUPPORTED DEVICES =======
+  // ===== MOBILE OR GPS SUPPORTED =====
   if (navigator.geolocation) {
-    watchIdRef.current = navigator.geolocation.watchPosition(
-      async (pos) => {
-        const { latitude, longitude, accuracy } = pos.coords;
+    const handlePosition = async (pos) => {
+      const { latitude, longitude, accuracy } = pos.coords;
 
-        // فلترة المواقع غير الدقيقة
-        if (accuracy > 50) {
-          setStatusMsg(`📡 GPS found, but accuracy is low (${Math.round(accuracy)}m)`);
-          return;
-        }
-
-        // تحديث الحالة المحلية
+      // فقط إذا كانت دقة GPS معقولة
+      if (accuracy <= 50) {
+        lastKnownPos = { lat: latitude, lng: longitude, accuracy };
         setCurrentPos({ lat: latitude, lng: longitude });
         setAccuracy(accuracy);
         setStatusMsg(`📡 GPS accuracy: ${Math.round(accuracy)}m`);
 
-        // إرسال الموقع للسيرفر
         if (socketRef.current?.connected) {
           socketRef.current.emit("update-location", {
             orderId: currentOrderId,
@@ -737,21 +732,31 @@ export default function DriverTracking({ initialOrderNumber, driverId }) {
             timestamp: Date.now(),
           });
         }
-      },
+      } else {
+        setStatusMsg(`⚠️ GPS found but low accuracy (${Math.round(accuracy)}m). Retrying...`);
+      }
+    };
+
+    watchIdRef.current = navigator.geolocation.watchPosition(
+      handlePosition,
       (err) => setStatusMsg("❌ GPS Error: " + err.message),
       { enableHighAccuracy: true, maximumAge: 0, timeout: 15000 }
     );
+
     return;
   }
 
-  // ======= DESKTOP OR NO GPS =======
+  // ===== DESKTOP / NO GPS =====
   setStatusMsg("⚠️ GPS not supported. Using fallback coordinates for testing.");
 
   let lat = 34.4386, lng = 35.8495;
   watchIdRef.current = setInterval(() => {
-    // حركة عشوائية بسيطة لتجربة الخرائط
+    // حركة عشوائية صغيرة
     lat += (Math.random() - 0.5) * 0.0005;
     lng += (Math.random() - 0.5) * 0.0005;
+
+    const fallbackPos = { lat, lng, accuracy: 20 };
+    lastKnownPos = fallbackPos;
 
     setCurrentPos({ lat, lng });
     setAccuracy(20);
@@ -768,7 +773,29 @@ export default function DriverTracking({ initialOrderNumber, driverId }) {
       });
     }
   }, 3000);
+
+  // ===== SEND LAST KNOWN POSITION IF CONNECTION RETURNS =====
+  const retryLastKnownPosition = () => {
+    if (lastKnownPos && socketRef.current?.connected) {
+      socketRef.current.emit("update-location", {
+        orderId: currentOrderId,
+        driverId,
+        lat: lastKnownPos.lat,
+        lng: lastKnownPos.lng,
+        accuracy: lastKnownPos.accuracy,
+        timestamp: Date.now(),
+      });
+    }
+  };
+
+  const retryInterval = setInterval(retryLastKnownPosition, 10000); // كل 10 ثواني
+  // تنظيف عند إيقاف التتبع
+  const cleanup = () => clearInterval(retryInterval);
+  watchIdRef.current.cleanup = cleanup;
 };
+
+
+
 
 
   // ===================== STOP TRACKING =====================
