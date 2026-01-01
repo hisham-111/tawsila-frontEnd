@@ -561,7 +561,7 @@ export default function DriverTracking({ initialOrderNumber, driverId }) {
     socket.on("order-cancelled", (data) => {
       if (data.orderId === currentOrderId) {
         alert(`Order #${currentOrderId} has been cancelled!`);
-        stopTrackingImmediately();
+        // stopTrackingImmediately();
       }
       setAvailableOrders(prev => prev.filter(o => o.order_number !== data.orderId));
     });
@@ -641,82 +641,157 @@ export default function DriverTracking({ initialOrderNumber, driverId }) {
   }
 
   // ===================== START TRACKING =====================
+  // const startTracking = () => {
+  //   if (!isOrderAccepted || !currentOrderId) return;
+
+  //   const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+
+  //   if (watchIdRef.current) {
+  //     navigator.geolocation.clearWatch(watchIdRef.current);
+  //   }
+
+  //   setIsTracking(true);
+  //   setStatusMsg("📡 Starting location tracking...");
+
+  //   if (isMobile && navigator.geolocation) {
+  //     watchIdRef.current = navigator.geolocation.watchPosition(
+  //       async (pos) => {
+  //         const { latitude, longitude, accuracy } = pos.coords;
+  //         setCurrentPos({ lat: latitude, lng: longitude });
+  //         setAccuracy(accuracy);
+  //         setStatusMsg(`📡 GPS accuracy: ${Math.round(accuracy)}m`);
+  //         if (socketRef.current?.connected) {
+  //           socketRef.current.emit("update-location", {
+  //             orderId: currentOrderId,
+  //             driverId,
+  //             lat: latitude,
+  //             lng: longitude,
+  //             accuracy,
+  //             timestamp: Date.now(),
+  //           });
+  //         }
+  //       },
+  //       (err) => setStatusMsg("❌ GPS Error: " + err.message),
+  //       { enableHighAccuracy: true, maximumAge: 0, timeout: 10000 }
+  //     );
+  //     return;
+  //   }
+
+  //   let lat = 34.4386, lng = 35.8495;
+  //   watchIdRef.current = setInterval(() => {
+  //     lat += (Math.random() - 0.5) * 0.0005;
+  //     lng += (Math.random() - 0.5) * 0.0005;
+  //     setCurrentPos({ lat, lng });
+  //     if (socketRef.current?.connected) {
+  //       socketRef.current.emit("update-location", {
+  //         orderId: currentOrderId,
+  //         driverId,
+  //         lat,
+  //         lng,
+  //         accuracy: 20,
+  //         timestamp: Date.now(),
+  //       });
+  //     }
+  //   }, 3000);
+  // };
+
   const startTracking = () => {
-    if (!isOrderAccepted || !currentOrderId) return;
+  if (!isOrderAccepted || !currentOrderId) return;
 
-    const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
-
-    if (watchIdRef.current) {
-      navigator.geolocation.clearWatch(watchIdRef.current);
-    }
-
-    setIsTracking(true);
-    setStatusMsg("📡 Starting location tracking...");
-
-    if (isMobile && navigator.geolocation) {
-      watchIdRef.current = navigator.geolocation.watchPosition(
-        async (pos) => {
-          const { latitude, longitude, accuracy } = pos.coords;
-          setCurrentPos({ lat: latitude, lng: longitude });
-          setAccuracy(accuracy);
-          setStatusMsg(`📡 GPS accuracy: ${Math.round(accuracy)}m`);
-          if (socketRef.current?.connected) {
-            socketRef.current.emit("update-location", {
-              orderId: currentOrderId,
-              driverId,
-              lat: latitude,
-              lng: longitude,
-              accuracy,
-              timestamp: Date.now(),
-            });
-          }
-        },
-        (err) => setStatusMsg("❌ GPS Error: " + err.message),
-        { enableHighAccuracy: true, maximumAge: 0, timeout: 15000 }
-      );
-      return;
-    }
-
-    // Desktop mock
-    let lat = 34.4386, lng = 35.8495;
-    watchIdRef.current = setInterval(() => {
-      lat += (Math.random() - 0.5) * 0.0005;
-      lng += (Math.random() - 0.5) * 0.0005;
-      setCurrentPos({ lat, lng });
-      if (socketRef.current?.connected) {
-        socketRef.current.emit("update-location", {
-          orderId: currentOrderId,
-          driverId,
-          lat,
-          lng,
-          accuracy: 20,
-          timestamp: Date.now(),
-        });
-      }
-    }, 3000);
-  };
-
-  // ===================== STOP TRACKING =====================
-  const stopTracking = () => setIsConfirmingStop(true);
-  const stopTrackingImmediately = () => {
-    navigator.geolocation.clearWatch(watchIdRef.current);
-    watchIdRef.current = null;
-    setIsTracking(false);
-    setCurrentOrderId(null);
-    setIsOrderAccepted(false);
-    setStatusMsg("Delivery stopped.");
-    fetchAvailableOrders();
+  // تنظيف أي Watch سابق
+  if (watchIdRef.current) {
+    if (navigator.geolocation.clearWatch) navigator.geolocation.clearWatch(watchIdRef.current);
+    else clearInterval(watchIdRef.current);
   }
 
-  const handleConfirmStop = async () => {
-    setIsConfirmingStop(false);
-    stopTrackingImmediately();
-  };
+  setIsTracking(true);
+  setStatusMsg("📡 Starting location tracking...");
+
+  const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+
+  // ======= MOBILE OR GPS SUPPORTED DEVICES =======
+  if (navigator.geolocation) {
+    watchIdRef.current = navigator.geolocation.watchPosition(
+      async (pos) => {
+        const { latitude, longitude, accuracy } = pos.coords;
+
+        // فلترة المواقع غير الدقيقة
+        if (accuracy > 50) {
+          setStatusMsg(`📡 GPS found, but accuracy is low (${Math.round(accuracy)}m)`);
+          return;
+        }
+
+        // تحديث الحالة المحلية
+        setCurrentPos({ lat: latitude, lng: longitude });
+        setAccuracy(accuracy);
+        setStatusMsg(`📡 GPS accuracy: ${Math.round(accuracy)}m`);
+
+        // إرسال الموقع للسيرفر
+        if (socketRef.current?.connected) {
+          socketRef.current.emit("update-location", {
+            orderId: currentOrderId,
+            driverId,
+            lat: latitude,
+            lng: longitude,
+            accuracy,
+            timestamp: Date.now(),
+          });
+        }
+      },
+      (err) => setStatusMsg("❌ GPS Error: " + err.message),
+      { enableHighAccuracy: true, maximumAge: 0, timeout: 15000 }
+    );
+    return;
+  }
+
+  // ======= DESKTOP OR NO GPS =======
+  setStatusMsg("⚠️ GPS not supported. Using fallback coordinates for testing.");
+
+  let lat = 34.4386, lng = 35.8495;
+  watchIdRef.current = setInterval(() => {
+    // حركة عشوائية بسيطة لتجربة الخرائط
+    lat += (Math.random() - 0.5) * 0.0005;
+    lng += (Math.random() - 0.5) * 0.0005;
+
+    setCurrentPos({ lat, lng });
+    setAccuracy(20);
+    setStatusMsg("⚠️ Fallback location (Desktop simulation)");
+
+    if (socketRef.current?.connected) {
+      socketRef.current.emit("update-location", {
+        orderId: currentOrderId,
+        driverId,
+        lat,
+        lng,
+        accuracy: 20,
+        timestamp: Date.now(),
+      });
+    }
+  }, 3000);
+};
+
+
+  // ===================== STOP TRACKING =====================
+  // const stopTracking = () => setIsConfirmingStop(true);
+  // const stopTrackingImmediately = () => {
+  //   navigator.geolocation.clearWatch(watchIdRef.current);
+  //   watchIdRef.current = null;
+  //   setIsTracking(false);
+  //   setCurrentOrderId(null);
+  //   setIsOrderAccepted(false);
+  //   setStatusMsg("Delivery stopped.");
+  //   fetchAvailableOrders();
+  // }
+
+  // const handleConfirmStop = async () => {
+  //   setIsConfirmingStop(false);
+  //    stopTrackingImmediately();
+  // };
 
   // ===================== MARK AS DELIVERED =====================
   const handleMarkDelivered = async () => {
     setIsConfirmingDelivered(false);
-    stopTrackingImmediately();
+    // stopTrackingImmediately();
 
     if (socketRef.current?.connected && currentOrderId && currentPos) {
       socketRef.current.emit("update-location", { orderId: currentOrderId, driverId, lat: currentPos.lat, lng: currentPos.lng });
@@ -733,7 +808,7 @@ export default function DriverTracking({ initialOrderNumber, driverId }) {
       const res = await api.post(`/orders/cancel/${currentOrderId}`);
       if (res.status === 200) {
         alert(`Order #${currentOrderId} cancelled successfully.`);
-        stopTrackingImmediately();
+        // stopTrackingImmediately();
       }
     } catch (err) {
       console.error("Cancel error:", err);
@@ -828,7 +903,7 @@ export default function DriverTracking({ initialOrderNumber, driverId }) {
             <Button variant="contained" fullWidth color="success" onClick={startTracking} disabled={!isOrderAccepted}>Start Tracking</Button>
           ) : (
             <>
-              <Button variant="contained" fullWidth color="error" onClick={stopTracking}>Stop Tracking</Button>
+              {/* <Button variant="contained" fullWidth color="error" onClick={stopTracking}>Stop Tracking</Button> */}
               <Button variant="contained" fullWidth color="primary" onClick={() => setIsConfirmingDelivered(true)}>Mark as Delivered</Button>
               <Button variant="contained" fullWidth color="warning" onClick={() => setIsConfirmingCancel(true)}>Cancel Order</Button>
             </>
