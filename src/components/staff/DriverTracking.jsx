@@ -716,7 +716,7 @@ export default function DriverTracking({ initialOrderNumber, driverId }) {
       const { latitude, longitude, accuracy } = pos.coords;
 
       // فقط إذا كانت دقة GPS معقولة
-      if (accuracy <= 50) {
+      if (accuracy <= 100) {
         lastKnownPos = { lat: latitude, lng: longitude, accuracy };
         setCurrentPos({ lat: latitude, lng: longitude });
         setAccuracy(accuracy);
