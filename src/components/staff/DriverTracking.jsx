@@ -945,8 +945,8 @@ export default function DriverTracking({ initialOrderNumber, driverId }) {
             <Typography variant="body1">Are you sure you want to stop tracking without marking the delivery as completed?</Typography>
           </DialogContent>
           <DialogActions>
-            <Button onClick={() => setIsConfirmingStop(false)}>Cancel</Button>
-            <Button onClick={handleConfirmStop} color="error" variant="contained">Stop Tracking</Button>
+            {/* <Button onClick={() => setIsConfirmingStop(false)}>Cancel</Button> */}
+            {/* <Button onClick={handleConfirmStop} color="error" variant="contained">Stop Tracking</Button> */}
           </DialogActions>
         </Dialog>
 
