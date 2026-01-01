@@ -1225,80 +1225,59 @@ const fetchDetailedAddress = async (lat, lng) => {
 const startTracking = () => {
   if (!isOrderAccepted || !currentOrderId) return;
 
-  // 🧠 تحديد البيئة
-  const isMobile =
-    /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
-
-  // تنظيف أي تتبع سابق
-  if (watchIdRef.current) {
-    navigator.geolocation.clearWatch(watchIdRef.current);
-  }
+  const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
 
   setIsTracking(true);
   setStatusMsg("📡 Starting location tracking...");
 
-  // =========================
-  // 📱 MOBILE → GPS حقيقي
-  // =========================
   if (isMobile && navigator.geolocation) {
-    watchIdRef.current = navigator.geolocation.watchPosition(
-      async (pos) => {
-        const { latitude, longitude, accuracy } = pos.coords;
+    navigator.geolocation.getCurrentPosition(
+      () => {
+        watchIdRef.current = navigator.geolocation.watchPosition(
+          async (pos) => {
+            const { latitude, longitude, accuracy } = pos.coords;
+            setCurrentPos({ lat: latitude, lng: longitude });
+            setStatusMsg(`📡 GPS accuracy: ${Math.round(accuracy)}m`);
 
-        setCurrentPos({ lat: latitude, lng: longitude });
-        setStatusMsg(`📡 GPS accuracy: ${Math.round(accuracy)}m`);
-
-        if (socketRef.current?.connected) {
-          socketRef.current.emit("update-location", {
-            orderId: currentOrderId,
-            driverId,
-            lat: latitude,
-            lng: longitude,
-            accuracy,
-            timestamp: Date.now(),
-          });
-        }
+            if (socketRef.current?.connected) {
+              socketRef.current.emit("update-location", {
+                orderId: currentOrderId,
+                driverId,
+                lat: latitude,
+                lng: longitude,
+                accuracy,
+                timestamp: Date.now(),
+              });
+            }
+          },
+          (err) => setStatusMsg("❌ GPS Error: " + err.message),
+          { enableHighAccuracy: true, maximumAge: 0, timeout: 15000 }
+        );
       },
-      (err) => {
-        setStatusMsg("❌ GPS Error: " + err.message);
-      },
-      {
-        enableHighAccuracy: true,
-        maximumAge: 0,
-        timeout: 15000,
-      }
+      (err) => setStatusMsg("❌ GPS Permission denied: " + err.message)
     );
-
-    return;
+  } else {
+    // محاكاة على الكمبيوتر
+    let lat = 34.4386;
+    let lng = 35.8495;
+    watchIdRef.current = setInterval(() => {
+      lat += (Math.random() - 0.5) * 0.0005;
+      lng += (Math.random() - 0.5) * 0.0005;
+      setCurrentPos({ lat, lng });
+      if (socketRef.current?.connected) {
+        socketRef.current.emit("update-location", {
+          orderId: currentOrderId,
+          driverId,
+          lat,
+          lng,
+          accuracy: 20,
+          timestamp: Date.now(),
+        });
+      }
+    }, 3000);
   }
-
-  // =========================
-  // 💻 DESKTOP → Mock Movement
-  // =========================
-  setStatusMsg("🧪 Desktop mode: Simulated movement");
-
-  let lat = 34.4386; // طرابلس
-  let lng = 35.8495;
-
-  watchIdRef.current = setInterval(() => {
-    // محاكاة حركة حقيقية
-    lat += (Math.random() - 0.5) * 0.0005;
-    lng += (Math.random() - 0.5) * 0.0005;
-
-    setCurrentPos({ lat, lng });
-
-    if (socketRef.current?.connected) {
-      socketRef.current.emit("update-location", {
-        orderId: currentOrderId,
-        driverId,
-        lat,
-        lng,
-        accuracy: 20,
-        timestamp: Date.now(),
-      });
-    }
-  }, 3000);
 };
+
 
 
 
