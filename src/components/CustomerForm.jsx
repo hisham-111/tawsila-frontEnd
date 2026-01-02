@@ -23,21 +23,36 @@ function MapClickHandler({ setPosition, setForm }) {
     const map = useMap(); 
 
     
-    useMapEvents({
-        click(e) {
-            // 💡 التصحيح: استخدام دالة wrap() لـ Leaflet لضمان أن خط الطول بين -180 و 180
-            const correctedLatLng = e.latlng.wrap(); 
+//     useMapEvents({
+//         click(e) {
+//             // 💡 التصحيح: استخدام دالة wrap() لـ Leaflet لضمان أن خط الطول بين -180 و 180
+//             const correctedLatLng = e.latlng.wrap(); 
 
-            console.log("✅ Final Click Coords:", correctedLatLng); // للتأكد في الكونسول
+//             console.log("✅ Final Click Coords:", correctedLatLng); // للتأكد في الكونسول
             
-            setPosition(correctedLatLng);
-            // عند النقر، نحدث العنوان ونحرك الخريطة
-            setForm((prev) => ({ ...prev, customer_address: "Location manually selected on map." }));
-            map.flyTo(correctedLatLng, map.getZoom()); 
-        },
-    });
-    return null;
-}
+//             setPosition(correctedLatLng);
+//             // عند النقر، نحدث العنوان ونحرك الخريطة
+//             setForm((prev) => ({ ...prev, customer_address: "Location manually selected on map." }));
+//             map.flyTo(correctedLatLng, map.getZoom()); 
+//         },
+//     });
+//     return null;
+// }
+
+useMapEvents({
+  click(e) {
+    const corrected = e.latlng.wrap();
+    setPosition({ lat: corrected.lat, lng: corrected.lng });
+
+    setForm(prev => ({
+      ...prev,
+      customer_address: "Location selected manually on map"
+    }));
+
+    map.flyTo(corrected, map.getZoom());
+  }
+});
+
 
 // 2. مكون البحث (استمرار استخدام Esri مع التبديل التلقائي لضمان الثبات)
 
@@ -74,13 +89,27 @@ function SearchControl({ setPosition, setForm }) {
             // استخدام القاعدة التجريبية التي عملت: القيمة الأصغر هي Latitude (34.xx)
             let latValue, lngValue;
             
-            if (parseFloat(x) < parseFloat(y)) {
-                latValue = parseFloat(x);
-                lngValue = parseFloat(y);
-            } else {
-                latValue = parseFloat(y);
-                lngValue = parseFloat(x);
-            }
+            // if (parseFloat(x) < parseFloat(y)) {
+            //     latValue = parseFloat(x);
+            //     lngValue = parseFloat(y);
+            // } else {
+            //     latValue = parseFloat(y);
+            //     lngValue = parseFloat(x);
+            // }
+
+            map.on("geosearch/showlocation", (result) => {
+                const { x, y, label } = result.location;
+
+                const newPos = {
+                    lat: y, // Leaflet-Geosearch returns y = lat
+                    lng: x, // x = lng
+                };
+
+                setPosition(newPos);
+                setForm(prev => ({ ...prev, customer_address: label }));
+                map.flyTo(newPos, 17);
+                });
+
 
             const newPos = { lat: latValue, lng: lngValue };
             
@@ -260,7 +289,7 @@ export default function CustomerForm() {
                         </MapContainer>
                     </Box>
 
-                    <Button
+                    {/* <Button
                         variant="outlined"
                         onClick={async () => {
                             navigator.geolocation.getCurrentPosition(
@@ -286,7 +315,50 @@ export default function CustomerForm() {
                         }}
                         >
                         📍 Use My Current Location
-                        </Button>
+                    </Button> */}
+                    <Button
+                        variant="outlined"
+                        onClick={() => {
+                        if (!navigator.geolocation) {
+                        alert("Geolocation not supported");
+                        return;
+                        }
+
+                        navigator.geolocation.getCurrentPosition(
+                        async (pos) => {
+                            const { latitude, longitude, accuracy } = pos.coords;
+
+                            // 🧠 تحقق من الدقة
+                            if (accuracy > 50) {
+                            alert(`GPS accuracy is low (±${Math.round(accuracy)}m). Please move outside.`);
+                            return;
+                            }
+
+                            const coords = { lat: latitude, lng: longitude };
+                            setPosition(coords);
+
+                            // Reverse Geocoding
+                            const res = await fetch(
+                            `https://nominatim.openstreetmap.org/reverse?lat=${latitude}&lon=${longitude}&format=json`
+                            );
+                            const data = await res.json();
+
+                            setForm(prev => ({
+                            ...prev,
+                            customer_address: data.display_name || "Current location"
+                            }));
+                        },
+                        () => alert("GPS permission denied"),
+                        {
+                            enableHighAccuracy: true,
+                            timeout: 15000,
+                            maximumAge: 0,
+                        }
+                        );
+                    }}
+                    >
+                    📍 Use My Current Location
+                  </Button>
 
 
                     <Typography variant="caption" align="center" color={position ? "success.main" : "error"}>

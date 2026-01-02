@@ -1,277 +1,319 @@
 import { useState, useEffect, useRef } from "react";
 import { motion } from "framer-motion";
-import {
-  Box, Paper, Typography, LinearProgress, Modal, Button
-} from "@mui/material";
+import { Box, Paper, Typography, LinearProgress, Modal, Button } from "@mui/material";
 import CheckCircleIcon from "@mui/icons-material/CheckCircle";
 import { useNavigate, useLocation } from "react-router-dom";
 import { io } from "socket.io-client";
-import {
-  MapContainer, TileLayer, Marker, Popup, Polyline, useMap
-} from "react-leaflet";
+import { MapContainer, TileLayer, Marker, Popup, Polyline, useMap } from "react-leaflet";
 import "leaflet/dist/leaflet.css";
 import L from "leaflet";
 import api from "./api";
 import Logo from "../assets/Logo.png";
 
-/* ================= ICONS ================= */
+// 🔹 Icons
 const driverIcon = new L.Icon({
-  iconUrl: "https://cdn-icons-png.flaticon.com/512/3097/3097136.png",
-  iconSize: [36, 36],
-  iconAnchor: [18, 18],
+    iconUrl: "https://cdn-icons-png.flaticon.com/512/3097/3097136.png",
+    iconSize: [36, 36],
+    iconAnchor: [18, 18],
+    popupAnchor: [0, -20]
 });
 
 const homeIcon = new L.Icon({
-  iconUrl: "https://cdn-icons-png.flaticon.com/512/619/619153.png",
-  iconSize: [36, 36],
-  iconAnchor: [18, 36],
+    iconUrl: "https://cdn-icons-png.flaticon.com/512/619/619153.png",
+    iconSize: [36, 36],
+    iconAnchor: [18, 36],
+    popupAnchor: [0, -36]
 });
 
-/* ================= CONSTANTS ================= */
-const SOCKET_URL =
-  import.meta.env.VITE_BACKEND_URL ||
-  "https://tawsila-backend-0shs.onrender.com";
+const SOCKET_URL = import.meta.env.VITE_BACKEND_URL || "https://tawsila-backend-0shs.onrender.com";
 
-/* ================= MAP CONTROLLER ================= */
+// 🔹 MapController
 function MapController({ driverLoc, customerLoc }) {
-  const map = useMap();
+    const map = useMap();
+    useEffect(() => {
+        const points = [];
+        if (driverLoc) points.push([driverLoc.lat, driverLoc.lng]);
+        if (customerLoc) points.push([customerLoc.lat, customerLoc.lng]);
 
-  useEffect(() => {
-    if (!map) return;
+        if (points.length === 2) map.fitBounds(points, { padding: [40, 40], animate: true });
+        else if (customerLoc) map.setView([customerLoc.lat, customerLoc.lng], 14, { animate: true });
+    }, [driverLoc, customerLoc, map]);
 
-    if (driverLoc && customerLoc) {
-      map.fitBounds(
-        [
-          [driverLoc.lat, driverLoc.lng],
-          [customerLoc.lat, customerLoc.lng],
-        ],
-        { padding: [40, 40] }
-      );
-    } else if (customerLoc) {
-      map.setView([customerLoc.lat, customerLoc.lng], 15);
-    }
-  }, [driverLoc, customerLoc, map]);
-
-  return null;
+    return null;
 }
 
-/* ================= REVERSE GEOCODING ================= */
+// 🔹 Reverse Geocoding
 const fetchDetailedAddress = async (lat, lng) => {
-  try {
-    const res = await fetch(
-      `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json`
-    );
-    const data = await res.json();
-    return data.display_name || "";
-  } catch {
-    return "";
-  }
+    try {
+        const res = await fetch(`https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json&addressdetails=1`);
+        const data = await res.json();
+        const { road, house_number, suburb, city, postcode } = data.address || {};
+        let detailedAddress = '';
+        if (house_number) detailedAddress += house_number + ' ';
+        if (road) detailedAddress += road + ', ';
+        if (suburb) detailedAddress += suburb + ', ';
+        if (city) detailedAddress += city + ', ';
+        if (postcode) detailedAddress += postcode;
+        return detailedAddress || data.display_name;
+    } catch (err) {
+        console.error("Reverse geocoding error:", err);
+        return null;
+    }
 };
 
-/* ================= MAIN COMPONENT ================= */
+// 🔹 Main Component
 export default function CustomerTracking() {
-  const location = useLocation();
-  const navigate = useNavigate();
+    const location = useLocation();
+    const navigate = useNavigate();
+    const [orderId, setOrderId] = useState(location.state?.orderNumber || "");
+    const [driverLocation, setDriverLocation] = useState(null);
+    const [customerLocation, setCustomerLocation] = useState(null);
+    const [status, setStatus] = useState("Connecting...");
+    const [eta, setEta] = useState(null);
+    const [distance, setDistance] = useState(null);
+    const socketRef = useRef(null);
+    const [isDeliveryComplete, setIsDeliveryComplete] = useState(false);
+    const [isCancelled, setIsCancelled] = useState(false);
 
-  const [orderId] = useState(location.state?.orderNumber || "");
-  const [driverLocation, setDriverLocation] = useState(null);
 
-  const [customerLocation, setCustomerLocation] = useState(null);
-  const [customerAddress, setCustomerAddress] = useState("");
-  const [locationSource, setLocationSource] = useState("backend"); // backend | gps | manual
-  const [locationAccuracy, setLocationAccuracy] = useState(null);
 
-  const [status, setStatus] = useState("Connecting...");
-  const [eta, setEta] = useState(null);
-  const [distance, setDistance] = useState(null);
 
-  const [isDeliveryComplete, setIsDeliveryComplete] = useState(false);
-  const [isCancelled, setIsCancelled] = useState(false);
 
-  const socketRef = useRef(null);
 
-  /* ================= GPS (USE MY LOCATION) ================= */
-  const useMyLocation = () => {
-    if (!navigator.geolocation) {
-      alert("Geolocation not supported");
-      return;
-    }
+    // 🔹 Fetch order data
+    useEffect(() => {
+        if (!orderId) return;
+        const fetchData = async () => {
+            try {
+                const { data } = await api.get(`/public/order/track/${orderId}`);
+                setStatus(`Order Status: ${data.status || "Unknown"}`);
+                const custLoc = data.customer?.coords || { lat: 34.12, lng: 35.65 };
+                setCustomerLocation(custLoc);
 
-    navigator.geolocation.getCurrentPosition(
-      (pos) => {
-        const { latitude, longitude, accuracy } = pos.coords;
+                if (data.status?.toLowerCase() === "in_transit" && data.tracked_location?.lat) {
+                    setDriverLocation(data.tracked_location);
+                }
 
-        if (accuracy > 50) {
-          alert("GPS accuracy is low, please wait or move outside");
-          return;
+                // إذا كانت الحالة delivered أو cancelled عند التحميل
+                if (data.status?.toLowerCase() === "delivered") setIsDeliveryComplete(true);
+                if (data.status?.toLowerCase() === "cancelled") setIsCancelled(true);
+            } catch {
+                setStatus("Error: Could not retrieve order data.");
+            }
+        };
+        fetchData();
+    }, [orderId]);
+
+
+    // 🔹 Route info
+    useEffect(() => {
+        if (driverLocation && customerLocation) {
+            const calculateRouteInfo = async () => {
+                setEta("Calculating...");
+                setDistance("Calculating...");
+                try {
+                    const response = await api.post('/orders/route-info', {
+                        origin: driverLocation,
+                        destination: customerLocation,
+                    });
+                    const routeData = response.data;
+                      console.log("ROUTE INFO RESPONSE:", response.data);
+
+
+                    // setDistance(routeData?.distance || "N/A");
+                   setDistance(`${(routeData.distance / 1000).toFixed(2)} km`);
+                   setEta(`${Math.round(routeData.duration / 60)} min`);
+
+
+
+
+                } catch (err) {
+                    console.error(err);
+                    setDistance("N/A");
+                    setEta("Error");
+                }
+            };
+            calculateRouteInfo();
+        } else {
+            setDistance(null);
+            setEta(null);
         }
+    }, [driverLocation, customerLocation]);
 
-        setCustomerLocation({ lat: latitude, lng: longitude });
-        setLocationAccuracy(accuracy);
-        setLocationSource("gps");
-      },
-      () => alert("Unable to get your location"),
-      {
-        enableHighAccuracy: true,
-        timeout: 15000,
-        maximumAge: 0,
-      }
-    );
-  };
+    // 🔹 WebSocket
+    useEffect(() => {
+        if (!orderId) return;
+        const socket = io(SOCKET_URL, {
+            transports: ["websocket", "polling"],
+            withCredentials: true,
+            reconnection: true,
+            reconnectionAttempts: 5,
+            timeout: 20000,
+        });
+        socketRef.current = socket;
+        socket.on("connect", () => socket.emit("join-order", orderId));
 
-  /* ================= FETCH ORDER ================= */
-  useEffect(() => {
-    if (!orderId) return;
-
-    const fetchOrder = async () => {
-      try {
-        const { data } = await api.get(`/public/order/track/${orderId}`);
-        setStatus(`Order Status: ${data.status || "Unknown"}`);
-
-        if (locationSource === "backend" && data.customer?.coords) {
-          setCustomerLocation(data.customer.coords);
-        }
-
-        if (data.tracked_location?.lat) {
-          setDriverLocation(data.tracked_location);
-        }
-
-        if (data.status === "delivered") setIsDeliveryComplete(true);
-        if (data.status === "cancelled") setIsCancelled(true);
-      } catch {
-        setStatus("Error loading order");
-      }
-    };
-
-    fetchOrder();
-  }, [orderId, locationSource]);
-
-  /* ================= ROUTE INFO ================= */
-  useEffect(() => {
-    if (!driverLocation || !customerLocation) return;
-
-    const loadRouteInfo = async () => {
-      try {
-        setEta("Calculating...");
-        setDistance("Calculating...");
-
-        const { data } = await api.post("/orders/route-info", {
-          origin: driverLocation,
-          destination: customerLocation,
+        socket.on("location-updated", (data) => {
+            if (data && typeof data.lat === "number" && typeof data.lng === "number") setDriverLocation(data);
+            else setDriverLocation(null);
         });
 
-        setDistance(`${(data.distance / 1000).toFixed(2)} km`);
-        setEta(`${Math.round(data.duration / 60)} min`);
-      } catch {
-        setEta("Error");
-        setDistance("N/A");
-      }
-    };
+        socket.on("delivery-complete", () => {
+            setStatus("Order Status: Delivered! 🎉");
+            setDriverLocation(null);
+            setIsDeliveryComplete(true);
+        });
 
-    loadRouteInfo();
-  }, [driverLocation, customerLocation]);
+        socket.on("order-cancelled", () => {
+            setStatus("Order Status: Cancelled ❌");
+            setDriverLocation(null);
+            setIsCancelled(true);
+        });
 
-  /* ================= SOCKET ================= */
-  useEffect(() => {
-    if (!orderId) return;
+        return () => socket.disconnect();
+    }, [orderId]);
 
-    const socket = io(SOCKET_URL, { transports: ["websocket"] });
-    socketRef.current = socket;
 
-    socket.on("connect", () => socket.emit("join-order", orderId));
 
-    socket.on("location-updated", setDriverLocation);
-    socket.on("delivery-complete", () => setIsDeliveryComplete(true));
-    socket.on("order-cancelled", () => setIsCancelled(true));
 
-    return () => socket.disconnect();
-  }, [orderId]);
-
-  /* ================= ADDRESS ================= */
-  useEffect(() => {
-    if (!customerLocation) return;
-
-    fetchDetailedAddress(customerLocation.lat, customerLocation.lng)
-      .then(setCustomerAddress);
-  }, [customerLocation?.lat, customerLocation?.lng]);
-
-  /* ================= RENDER ================= */
-  return (
-    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
-      <Paper sx={{ maxWidth: 720, m: "16px auto", borderRadius: 2 }}>
-        <Box sx={{ p: 2, textAlign: "center", bgcolor: "#f5f5f5" }}>
-          <img src={Logo} alt="logo" width={80} />
-          <Typography fontWeight="bold">🚚 Delivery Tracking</Typography>
-          <Typography variant="caption">Order #{orderId}</Typography>
-          <Typography variant="caption">{status}</Typography>
-          {!driverLocation && <LinearProgress sx={{ mt: 1 }} />}
-        </Box>
-
-        <Button fullWidth onClick={useMyLocation}>
-          📍 Use my current location
-        </Button>
-
-        {locationAccuracy && (
-          <Typography align="center" variant="caption">
-            Accuracy ±{Math.round(locationAccuracy)}m
-          </Typography>
-        )}
-
-        <Box sx={{ height: 400 }}>
-          <MapContainer
-            center={
-              customerLocation
-                ? [customerLocation.lat, customerLocation.lng]
-                : [33.888, 35.495]
+    // 🔹 Polling fallback every 30 ثانية للتأكد من تسليم أو إلغاء الطلب
+    useEffect(() => {
+        if (!orderId) return;
+        const interval = setInterval(async () => {
+            try {
+                const { data } = await api.get(`/public/order/track/${orderId}`);
+                const s = data.status?.toLowerCase();
+                if (s === "delivered" && !isDeliveryComplete) setIsDeliveryComplete(true);
+                if (s === "cancelled" && !isCancelled) setIsCancelled(true);
+            } catch (err) {
+                console.error("Polling order status error:", err);
             }
-            zoom={14}
-            style={{ height: "100%" }}
-          >
-            <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
+        }, 30000);
 
-            {customerLocation && (
-              <Marker
-                draggable
-                position={[customerLocation.lat, customerLocation.lng]}
-                icon={homeIcon}
-                eventHandlers={{
-                  dragend: (e) => {
-                    const { lat, lng } = e.target.getLatLng();
-                    setCustomerLocation({ lat, lng });
-                    setLocationSource("manual");
-                  },
-                }}
-              >
-                <Popup>{customerAddress || "Delivery location"}</Popup>
-              </Marker>
-            )}
+        return () => clearInterval(interval);
+    }, [orderId, isDeliveryComplete, isCancelled]);
 
-            {driverLocation && (
-              <Marker
-                position={[driverLocation.lat, driverLocation.lng]}
-                icon={driverIcon}
-              />
-            )}
+    // 🔹 Route info
+    useEffect(() => {
+        if (driverLocation && customerLocation) {
+            const calculateRouteInfo = async () => {
+                setEta("Calculating...");
+                setDistance("Calculating...");
+                try {
+                    const response = await api.post('/orders/route-info', {
+                        origin: driverLocation,
+                        destination: customerLocation,
+                    });
+                    const routeData = response.data;
+                    setDistance(`${(routeData.distance / 1000).toFixed(2)} km`);
+                    setEta(`${Math.round(routeData.duration / 60)} min`);
+                } catch (err) {
+                    console.error(err);
+                    setDistance("N/A");
+                    setEta("Error");
+                }
+            };
+            calculateRouteInfo();
+        } else {
+            setDistance(null);
+            setEta(null);
+        }
+    }, [driverLocation, customerLocation]);
 
-            {driverLocation && customerLocation && (
-              <Polyline
-                positions={[
-                  [driverLocation.lat, driverLocation.lng],
-                  [customerLocation.lat, customerLocation.lng],
-                ]}
-              />
-            )}
+    // 🔹 Fetch addresses for markers
+    useEffect(() => {
+        if (customerLocation) {
+            fetchDetailedAddress(customerLocation.lat, customerLocation.lng)
+                .then(addr => setCustomerLocation(prev => ({ ...prev, address: addr })));
+        }
+    }, [customerLocation?.lat, customerLocation?.lng]);
 
-            <MapController
-              driverLoc={driverLocation}
-              customerLoc={customerLocation}
-            />
-          </MapContainer>
-        </Box>
-      </Paper>
-    </motion.div>
-  );
+    useEffect(() => {
+        if (driverLocation) {
+            fetchDetailedAddress(driverLocation.lat, driverLocation.lng)
+                .then(addr => setDriverLocation(prev => ({ ...prev, address: addr })));
+        }
+    }, [driverLocation?.lat, driverLocation?.lng]);
+
+    return (
+        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.5 }}>
+            <Paper sx={{ maxWidth: { xs: 360, sm: 600, md: 720 }, m: "16px auto", borderRadius: 2, overflow: 'hidden' }}>
+                {/* Header */}
+                <Box sx={{ p: { xs: 2, sm: 3 }, bgcolor: "#f5f5f5", borderBottom: "1px solid #ddd" }}>
+                    <img src={Logo} alt="Company Logo" style={{ width: 90, height: 90, display: "flex", margin: "0 auto 8px" }} />
+                    <Typography variant="h6" textAlign='center' fontWeight="bold" sx={{ fontSize: { xs: "1rem", sm: "1.25rem" } }}>🚚 Delivery Tracking</Typography>
+                    <Typography variant="body2" color="text.secondary" sx={{ fontSize: { xs: "0.75rem", sm: "0.85rem" } }}>Order #{orderId}</Typography>
+                    <Box mt={1}>
+                        <Typography variant="caption" fontWeight="bold" sx={{ fontSize: { xs: "0.65rem", sm: "0.75rem" } }}>{status}</Typography>
+                        {!driverLocation && !isDeliveryComplete && !isCancelled && <LinearProgress sx={{ mt: 1, height: 5, borderRadius: 1 }} />}
+                    </Box>
+                </Box>
+
+                {/* Map */}
+                <Box sx={{ height: { xs: 300, sm: 400, md: 450 }, width: "100%", position: "relative" }}>
+                    {!driverLocation && customerLocation && !isDeliveryComplete && !isCancelled && (
+                        <Box sx={{
+                            position: 'absolute', zIndex: 999, top: '50%', left: '50%',
+                            transform: 'translate(-50%, -50%)', bgcolor: 'rgba(255,255,255,0.9)',
+                            p: 1.5, borderRadius: 1.5, boxShadow: 2, fontSize: { xs: "0.7rem", sm: "0.85rem" }
+                        }}>
+                            Waiting for driver to start moving...
+                        </Box>
+                    )}
+
+                        {(driverLocation && eta && distance) && (
+                        <Box sx={{
+                            mt: 2, mx: { xs: '1rem', sm: '3rem', md: '5rem' },
+                            display: 'flex', justifyContent: 'space-between', flexWrap: 'wrap'
+                        }}>
+                            <Typography variant="body1" fontWeight="600" color="primary.main" sx={{ fontSize: { xs: "0.8rem", sm: "1rem" } }}>Estimated Time ⏱️ : {eta}</Typography>
+                            <Typography variant="body1" fontWeight="600" color="text.secondary" sx={{ fontSize: { xs: "0.8rem", sm: "1rem" } }}>Remaining Distance 📏 : {distance}</Typography>
+                           </Box>
+                          )}
+
+                    <MapContainer center={customerLocation ? [customerLocation.lat, customerLocation.lng] : [33.888, 35.495]} zoom={13} style={{ height: "100%", width: "100%" }}>
+                        <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" attribution="&copy; OpenStreetMap contributors" />
+                        {customerLocation && <Marker position={[customerLocation.lat, customerLocation.lng]} icon={homeIcon}><Popup>{customerLocation.address || "Delivery Destination"}</Popup></Marker>}
+                        {driverLocation && <Marker position={[driverLocation.lat, driverLocation.lng]} icon={driverIcon}><Popup>{driverLocation.address || "Driver is here!"}</Popup></Marker>}
+                        {driverLocation && customerLocation && <Polyline positions={[[driverLocation.lat, driverLocation.lng], [customerLocation.lat, customerLocation.lng]]} color="blue" dashArray="10,10" opacity={0.6} />}
+                        <MapController driverLoc={driverLocation} customerLoc={customerLocation} />
+                    </MapContainer>
+                </Box>
+
+                {/* Delivery Modal */}
+                <Modal open={isDeliveryComplete} onClose={() => setIsDeliveryComplete(false)}>
+                    <Paper sx={{ position: "absolute", top: "50%", left: "50%", transform: "translate(-50%, -50%)",
+                        width: { xs: "85%", sm: 400 }, p: 4, textAlign: "center", borderRadius: 3,
+                        boxShadow: 24, outline: 'none', }}>
+                        <CheckCircleIcon sx={{ fontSize: 60, color: "#4CAF50", mb: 2 }} />
+                        <Typography variant="h5" fontWeight={700} mb={1}>Delivery Complete! 🎉</Typography>
+                        <Typography variant="body1" color="text.secondary" mb={3}>Your order **#{orderId}** has been successfully delivered.</Typography>
+                        <Button variant="contained" color="primary" fullWidth sx={{ py: 1.5, fontSize: "1rem", fontWeight: 600, mb: 1.5 }}
+                            onClick={() => { setIsDeliveryComplete(false); navigate(`/RateDelivery?orderId=${orderId}`); }}>Rate Your Experience ⭐</Button>
+                        <Button variant="outlined" color="inherit" fullWidth onClick={() => { setIsDeliveryComplete(false); navigate("/"); }}>Close</Button>
+                    </Paper>
+                </Modal>
+
+                {/* Cancel Modal */}
+                <Modal open={isCancelled} onClose={() => setIsCancelled(false)}>
+                    <Paper sx={{ position: "absolute", top: "50%", left: "50%", transform: "translate(-50%, -50%)",
+                        width: { xs: "85%", sm: 400 }, p: 4, textAlign: "center", borderRadius: 3,
+                        boxShadow: 24, outline: 'none', }}>
+                        <Typography variant="h5" fontWeight={700} mb={2}>Order Cancelled ❌</Typography>
+                        <Typography variant="body1" color="text.secondary" mb={3}>Your order **#{orderId}** has been cancelled by the restaurant or driver.</Typography>
+                        <Button variant="outlined" color="inherit" fullWidth onClick={() => { setIsCancelled(false); navigate("/"); }}>Close</Button>
+                    </Paper>
+                </Modal>
+            </Paper>
+        </motion.div>
+    );
 }
+
+
+
+
+
+
 
 
 // import { useState, useEffect, useRef } from "react";
@@ -349,12 +391,6 @@ export default function CustomerTracking() {
 //     const [distance, setDistance] = useState(null);
 //     const socketRef = useRef(null);
 //     const [isDeliveryComplete, setIsDeliveryComplete] = useState(false);
-//     const [isCancelled, setIsCancelled] = useState(false);
-
-
-
-
-
 
 //     // 🔹 Fetch order data
 //     useEffect(() => {
@@ -369,52 +405,12 @@ export default function CustomerTracking() {
 //                 if (data.status?.toLowerCase() === "in_transit" && data.tracked_location?.lat) {
 //                     setDriverLocation(data.tracked_location);
 //                 }
-
-//                 // إذا كانت الحالة delivered أو cancelled عند التحميل
-//                 if (data.status?.toLowerCase() === "delivered") setIsDeliveryComplete(true);
-//                 if (data.status?.toLowerCase() === "cancelled") setIsCancelled(true);
 //             } catch {
 //                 setStatus("Error: Could not retrieve order data.");
 //             }
 //         };
 //         fetchData();
 //     }, [orderId]);
-
-
-//     // 🔹 Route info
-//     useEffect(() => {
-//         if (driverLocation && customerLocation) {
-//             const calculateRouteInfo = async () => {
-//                 setEta("Calculating...");
-//                 setDistance("Calculating...");
-//                 try {
-//                     const response = await api.post('/orders/route-info', {
-//                         origin: driverLocation,
-//                         destination: customerLocation,
-//                     });
-//                     const routeData = response.data;
-//                       console.log("ROUTE INFO RESPONSE:", response.data);
-
-
-//                     // setDistance(routeData?.distance || "N/A");
-//                    setDistance(`${(routeData.distance / 1000).toFixed(2)} km`);
-//                    setEta(`${Math.round(routeData.duration / 60)} min`);
-
-
-
-
-//                 } catch (err) {
-//                     console.error(err);
-//                     setDistance("N/A");
-//                     setEta("Error");
-//                 }
-//             };
-//             calculateRouteInfo();
-//         } else {
-//             setDistance(null);
-//             setEta(null);
-//         }
-//     }, [driverLocation, customerLocation]);
 
 //     // 🔹 WebSocket
 //     useEffect(() => {
@@ -440,34 +436,15 @@ export default function CustomerTracking() {
 //             setIsDeliveryComplete(true);
 //         });
 
-//         socket.on("order-cancelled", () => {
+//         // 🔹 إضافة الاستماع لإلغاء الطلب
+//         socket.on("order-cancelled", ({ cancelledAt }) => {
 //             setStatus("Order Status: Cancelled ❌");
 //             setDriverLocation(null);
-//             setIsCancelled(true);
+//             alert(`Your order #${orderId} has been cancelled.`); // يمكنك استبدالها بمودال جميل
 //         });
 
 //         return () => socket.disconnect();
 //     }, [orderId]);
-
-
-
-
-//     // 🔹 Polling fallback every 30 ثانية للتأكد من تسليم أو إلغاء الطلب
-//     useEffect(() => {
-//         if (!orderId) return;
-//         const interval = setInterval(async () => {
-//             try {
-//                 const { data } = await api.get(`/public/order/track/${orderId}`);
-//                 const s = data.status?.toLowerCase();
-//                 if (s === "delivered" && !isDeliveryComplete) setIsDeliveryComplete(true);
-//                 if (s === "cancelled" && !isCancelled) setIsCancelled(true);
-//             } catch (err) {
-//                 console.error("Polling order status error:", err);
-//             }
-//         }, 30000);
-
-//         return () => clearInterval(interval);
-//     }, [orderId, isDeliveryComplete, isCancelled]);
 
 //     // 🔹 Route info
 //     useEffect(() => {
@@ -481,8 +458,16 @@ export default function CustomerTracking() {
 //                         destination: customerLocation,
 //                     });
 //                     const routeData = response.data;
-//                     setDistance(`${(routeData.distance / 1000).toFixed(2)} km`);
-//                     setEta(`${Math.round(routeData.duration / 60)} min`);
+//                       console.log("ROUTE INFO RESPONSE:", response.data);
+
+
+//                     // setDistance(routeData?.distance || "N/A");
+//                    setDistance(`${(routeData.distance / 1000).toFixed(2)} km`);
+// setEta(`${Math.round(routeData.duration / 60)} min`);
+
+
+
+
 //                 } catch (err) {
 //                     console.error(err);
 //                     setDistance("N/A");
@@ -516,18 +501,18 @@ export default function CustomerTracking() {
 //             <Paper sx={{ maxWidth: { xs: 360, sm: 600, md: 720 }, m: "16px auto", borderRadius: 2, overflow: 'hidden' }}>
 //                 {/* Header */}
 //                 <Box sx={{ p: { xs: 2, sm: 3 }, bgcolor: "#f5f5f5", borderBottom: "1px solid #ddd" }}>
-//                     <img src={Logo} alt="Company Logo" style={{ width: 90, height: 90, display: "flex", margin: "0 auto 8px" }} />
+//                     <img src={Logo} alt="Company Logo" style={{ width: 90, height: "90", display: "flex", margin: "0 auto 8px" }} />
 //                     <Typography variant="h6" textAlign='center' fontWeight="bold" sx={{ fontSize: { xs: "1rem", sm: "1.25rem" } }}>🚚 Delivery Tracking</Typography>
 //                     <Typography variant="body2" color="text.secondary" sx={{ fontSize: { xs: "0.75rem", sm: "0.85rem" } }}>Order #{orderId}</Typography>
 //                     <Box mt={1}>
 //                         <Typography variant="caption" fontWeight="bold" sx={{ fontSize: { xs: "0.65rem", sm: "0.75rem" } }}>{status}</Typography>
-//                         {!driverLocation && !isDeliveryComplete && !isCancelled && <LinearProgress sx={{ mt: 1, height: 5, borderRadius: 1 }} />}
+//                         {!driverLocation && <LinearProgress sx={{ mt: 1, height: 5, borderRadius: 1 }} />}
 //                     </Box>
 //                 </Box>
 
 //                 {/* Map */}
 //                 <Box sx={{ height: { xs: 300, sm: 400, md: 450 }, width: "100%", position: "relative" }}>
-//                     {!driverLocation && customerLocation && !isDeliveryComplete && !isCancelled && (
+//                     {!driverLocation && customerLocation && (
 //                         <Box sx={{
 //                             position: 'absolute', zIndex: 999, top: '50%', left: '50%',
 //                             transform: 'translate(-50%, -50%)', bgcolor: 'rgba(255,255,255,0.9)',
@@ -537,15 +522,15 @@ export default function CustomerTracking() {
 //                         </Box>
 //                     )}
 
-//                         {(driverLocation && eta && distance) && (
+//                     {(driverLocation && eta && distance) && (
 //                         <Box sx={{
 //                             mt: 2, mx: { xs: '1rem', sm: '3rem', md: '5rem' },
 //                             display: 'flex', justifyContent: 'space-between', flexWrap: 'wrap'
 //                         }}>
 //                             <Typography variant="body1" fontWeight="600" color="primary.main" sx={{ fontSize: { xs: "0.8rem", sm: "1rem" } }}>Estimated Time ⏱️ : {eta}</Typography>
 //                             <Typography variant="body1" fontWeight="600" color="text.secondary" sx={{ fontSize: { xs: "0.8rem", sm: "1rem" } }}>Remaining Distance 📏 : {distance}</Typography>
-//                            </Box>
-//                           )}
+//                         </Box>
+//                     )}
 
 //                     <MapContainer center={customerLocation ? [customerLocation.lat, customerLocation.lng] : [33.888, 35.495]} zoom={13} style={{ height: "100%", width: "100%" }}>
 //                         <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" attribution="&copy; OpenStreetMap contributors" />
@@ -569,27 +554,10 @@ export default function CustomerTracking() {
 //                         <Button variant="outlined" color="inherit" fullWidth onClick={() => { setIsDeliveryComplete(false); navigate("/"); }}>Close</Button>
 //                     </Paper>
 //                 </Modal>
-
-//                 {/* Cancel Modal */}
-//                 <Modal open={isCancelled} onClose={() => setIsCancelled(false)}>
-//                     <Paper sx={{ position: "absolute", top: "50%", left: "50%", transform: "translate(-50%, -50%)",
-//                         width: { xs: "85%", sm: 400 }, p: 4, textAlign: "center", borderRadius: 3,
-//                         boxShadow: 24, outline: 'none', }}>
-//                         <Typography variant="h5" fontWeight={700} mb={2}>Order Cancelled ❌</Typography>
-//                         <Typography variant="body1" color="text.secondary" mb={3}>Your order **#{orderId}** has been cancelled by the restaurant or driver.</Typography>
-//                         <Button variant="outlined" color="inherit" fullWidth onClick={() => { setIsCancelled(false); navigate("/"); }}>Close</Button>
-//                     </Paper>
-//                 </Modal>
 //             </Paper>
 //         </motion.div>
 //     );
 // }
-
-
-
-
-
-
 
 
 
