@@ -641,158 +641,61 @@ export default function DriverTracking({ initialOrderNumber, driverId }) {
   }
 
   // ===================== START TRACKING =====================
-  // const startTracking = () => {
-  //   if (!isOrderAccepted || !currentOrderId) return;
-
-  //   const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
-
-  //   if (watchIdRef.current) {
-  //     navigator.geolocation.clearWatch(watchIdRef.current);
-  //   }
-
-  //   setIsTracking(true);
-  //   setStatusMsg("📡 Starting location tracking...");
-
-  //   if (isMobile && navigator.geolocation) {
-  //     watchIdRef.current = navigator.geolocation.watchPosition(
-  //       async (pos) => {
-  //         const { latitude, longitude, accuracy } = pos.coords;
-  //         setCurrentPos({ lat: latitude, lng: longitude });
-  //         setAccuracy(accuracy);
-  //         setStatusMsg(`📡 GPS accuracy: ${Math.round(accuracy)}m`);
-  //         if (socketRef.current?.connected) {
-  //           socketRef.current.emit("update-location", {
-  //             orderId: currentOrderId,
-  //             driverId,
-  //             lat: latitude,
-  //             lng: longitude,
-  //             accuracy,
-  //             timestamp: Date.now(),
-  //           });
-  //         }
-  //       },
-  //       (err) => setStatusMsg("❌ GPS Error: " + err.message),
-  //       { enableHighAccuracy: true, maximumAge: 0, timeout: 10000 }
-  //     );
-  //     return;
-  //   }
-
-  //   let lat = 34.4386, lng = 35.8495;
-  //   watchIdRef.current = setInterval(() => {
-  //     lat += (Math.random() - 0.5) * 0.0005;
-  //     lng += (Math.random() - 0.5) * 0.0005;
-  //     setCurrentPos({ lat, lng });
-  //     if (socketRef.current?.connected) {
-  //       socketRef.current.emit("update-location", {
-  //         orderId: currentOrderId,
-  //         driverId,
-  //         lat,
-  //         lng,
-  //         accuracy: 20,
-  //         timestamp: Date.now(),
-  //       });
-  //     }
-  //   }, 3000);
-  // };
-
   const startTracking = () => {
-  if (!isOrderAccepted || !currentOrderId) return;
+    if (!isOrderAccepted || !currentOrderId) return;
 
-  // تنظيف أي Watch أو Interval سابق
-  if (watchIdRef.current) {
-    if (navigator.geolocation.clearWatch) navigator.geolocation.clearWatch(watchIdRef.current);
-    else clearInterval(watchIdRef.current);
-  }
+    const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
 
-  setIsTracking(true);
-  setStatusMsg("📡 Initializing location tracking...");
+    if (watchIdRef.current) {
+      navigator.geolocation.clearWatch(watchIdRef.current);
+    }
 
-  const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
-  let lastKnownPos = null; // لتخزين آخر موقع معروف بدقة
+    setIsTracking(true);
+    setStatusMsg("📡 Starting location tracking...");
 
-  // ===== MOBILE OR GPS SUPPORTED =====
-  if (navigator.geolocation) {
-    const handlePosition = async (pos) => {
-      const { latitude, longitude, accuracy } = pos.coords;
+    if (isMobile && navigator.geolocation) {
+      watchIdRef.current = navigator.geolocation.watchPosition(
+        async (pos) => {
+          const { latitude, longitude, accuracy } = pos.coords;
+          setCurrentPos({ lat: latitude, lng: longitude });
+          setAccuracy(accuracy);
+          setStatusMsg(`📡 GPS accuracy: ${Math.round(accuracy)}m`);
+          if (socketRef.current?.connected) {
+            socketRef.current.emit("update-location", {
+              orderId: currentOrderId,
+              driverId,
+              lat: latitude,
+              lng: longitude,
+              accuracy,
+              timestamp: Date.now(),
+            });
+          }
+        },
+        (err) => setStatusMsg("❌ GPS Error: " + err.message),
+        { enableHighAccuracy: true, maximumAge: 0, timeout: 10000 }
+      );
+      return;
+    }
 
-      // فقط إذا كانت دقة GPS معقولة
-      if (accuracy <= 100) {
-        lastKnownPos = { lat: latitude, lng: longitude, accuracy };
-        setCurrentPos({ lat: latitude, lng: longitude });
-        setAccuracy(accuracy);
-        setStatusMsg(`📡 GPS accuracy: ${Math.round(accuracy)}m`);
-
-        if (socketRef.current?.connected) {
-          socketRef.current.emit("update-location", {
-            orderId: currentOrderId,
-            driverId,
-            lat: latitude,
-            lng: longitude,
-            accuracy,
-            timestamp: Date.now(),
-          });
-        }
-      } else {
-        setStatusMsg(`⚠️ GPS found but low accuracy (${Math.round(accuracy)}m). Retrying...`);
+    let lat = 34.4386, lng = 35.8495;
+    watchIdRef.current = setInterval(() => {
+      lat += (Math.random() - 0.5) * 0.0005;
+      lng += (Math.random() - 0.5) * 0.0005;
+      setCurrentPos({ lat, lng });
+      if (socketRef.current?.connected) {
+        socketRef.current.emit("update-location", {
+          orderId: currentOrderId,
+          driverId,
+          lat,
+          lng,
+          accuracy: 20,
+          timestamp: Date.now(),
+        });
       }
-    };
-
-    watchIdRef.current = navigator.geolocation.watchPosition(
-      handlePosition,
-      (err) => setStatusMsg("❌ GPS Error: " + err.message),
-      { enableHighAccuracy: true, maximumAge: 0, timeout: 15000 }
-    );
-
-    return;
-  }
-
-  // ===== DESKTOP / NO GPS =====
-  setStatusMsg("⚠️ GPS not supported. Using fallback coordinates for testing.");
-
-  let lat = 34.4386, lng = 35.8495;
-  watchIdRef.current = setInterval(() => {
-    // حركة عشوائية صغيرة
-    lat += (Math.random() - 0.5) * 0.0005;
-    lng += (Math.random() - 0.5) * 0.0005;
-
-    const fallbackPos = { lat, lng, accuracy: 20 };
-    lastKnownPos = fallbackPos;
-
-    setCurrentPos({ lat, lng });
-    setAccuracy(20);
-    setStatusMsg("⚠️ Fallback location (Desktop simulation)");
-
-    if (socketRef.current?.connected) {
-      socketRef.current.emit("update-location", {
-        orderId: currentOrderId,
-        driverId,
-        lat,
-        lng,
-        accuracy: 20,
-        timestamp: Date.now(),
-      });
-    }
-  }, 3000);
-
-  // ===== SEND LAST KNOWN POSITION IF CONNECTION RETURNS =====
-  const retryLastKnownPosition = () => {
-    if (lastKnownPos && socketRef.current?.connected) {
-      socketRef.current.emit("update-location", {
-        orderId: currentOrderId,
-        driverId,
-        lat: lastKnownPos.lat,
-        lng: lastKnownPos.lng,
-        accuracy: lastKnownPos.accuracy,
-        timestamp: Date.now(),
-      });
-    }
+    }, 3000);
   };
 
-  const retryInterval = setInterval(retryLastKnownPosition, 10000); // كل 10 ثواني
-  // تنظيف عند إيقاف التتبع
-  const cleanup = () => clearInterval(retryInterval);
-  watchIdRef.current.cleanup = cleanup;
-};
+
 
 
 
