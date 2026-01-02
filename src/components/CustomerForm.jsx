@@ -322,42 +322,39 @@ L.Icon.Default.mergeOptions({
   shadowUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png",
 });
 
-// --- Component: Handle clicks on map and reverse geocode ---
+// --- Helper: Reverse Geocoding ---
+async function getAddress(lat, lng) {
+  try {
+    const res = await fetch(`https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json`);
+    const data = await res.json();
+    const addr = data.address;
+    return addr?.suburb || addr?.neighbourhood || addr?.city || addr?.town || addr?.village || data.display_name || "Unknown location";
+  } catch {
+    return "Unknown location";
+  }
+}
+
+// --- Map click handler ---
 function MapClickHandler({ setPosition, setForm }) {
   const map = useMap();
-
   useMapEvents({
     click: async (e) => {
-      const corrected = e.latlng.wrap();
-      const coords = { lat: corrected.lat, lng: corrected.lng };
+      const coords = e.latlng.wrap();
       setPosition(coords);
-
-      // Reverse Geocoding to get human-readable address
-      try {
-        const res = await fetch(
-          `https://nominatim.openstreetmap.org/reverse?lat=${coords.lat}&lon=${coords.lng}&format=json`
-        );
-        const data = await res.json();
-        const address = data.address?.city || data.address?.town || data.address?.village || data.display_name || "Selected location";
-        setForm((prev) => ({ ...prev, customer_address: address }));
-      } catch (err) {
-        setForm((prev) => ({ ...prev, customer_address: "Selected location" }));
-      }
-
-      map.flyTo(corrected, 17);
-    },
+      const address = await getAddress(coords.lat, coords.lng);
+      setForm(prev => ({ ...prev, customer_address: address }));
+      map.flyTo(coords, 17);
+    }
   });
-
   return null;
 }
 
-// --- Component: Search Control ---
+// --- Search Control ---
 function SearchControl({ setPosition, setForm }) {
   const map = useMap();
-
   useEffect(() => {
     const provider = new OpenStreetMapProvider();
-    const searchControl = new GeoSearchControl({
+    const control = new GeoSearchControl({
       provider,
       style: "bar",
       showMarker: false,
@@ -367,61 +364,43 @@ function SearchControl({ setPosition, setForm }) {
       searchLabel: "Enter street or neighborhood...",
       keepResult: true,
     });
-
-    map.addControl(searchControl);
-
-    map.on("geosearch/showlocation", (result) => {
+    map.addControl(control);
+    map.on("geosearch/showlocation", async (result) => {
       const { x, y, label } = result.location;
       const coords = { lat: y, lng: x };
       setPosition(coords);
-      setForm((prev) => ({ ...prev, customer_address: label }));
+      const address = await getAddress(coords.lat, coords.lng);
+      setForm(prev => ({ ...prev, customer_address: address }));
       map.flyTo(coords, 17);
     });
-
-    return () => map.removeControl(searchControl);
+    return () => map.removeControl(control);
   }, [map, setPosition, setForm]);
-
   return null;
 }
 
-// --- Component: Marker with drag ---
+// --- Marker with drag ---
 function LocationSelector({ position, setPosition, setForm }) {
   const markerRef = useRef(null);
-
-  const eventHandlers = useMemo(
-    () => ({
-      dragend: async () => {
-        const marker = markerRef.current;
-        if (!marker) return;
-        const coords = marker.getLatLng();
-        setPosition(coords);
-
-        // Reverse Geocoding for dragged marker
-        try {
-          const res = await fetch(
-            `https://nominatim.openstreetmap.org/reverse?lat=${coords.lat}&lon=${coords.lng}&format=json`
-          );
-          const data = await res.json();
-          const address = data.address?.city || data.address?.town || data.address?.village || data.display_name || "Selected location";
-          setForm((prev) => ({ ...prev, customer_address: address }));
-        } catch (err) {
-          setForm((prev) => ({ ...prev, customer_address: "Selected location" }));
-        }
-      },
-    }),
-    [setPosition, setForm]
-  );
+  const eventHandlers = useMemo(() => ({
+    dragend: async () => {
+      const marker = markerRef.current;
+      if (!marker) return;
+      const coords = marker.getLatLng();
+      setPosition(coords);
+      const address = await getAddress(coords.lat, coords.lng);
+      setForm(prev => ({ ...prev, customer_address: address }));
+    }
+  }), [setPosition, setForm]);
 
   if (!position) return null;
-
   return (
-    <Marker draggable={true} eventHandlers={eventHandlers} position={position} ref={markerRef}>
+    <Marker draggable eventHandlers={eventHandlers} position={position} ref={markerRef}>
       <Popup>Delivery Location (Drag to adjust)</Popup>
     </Marker>
   );
 }
 
-// --- Component: Fly map to current position ---
+// --- Fly to current position ---
 function FlyToPosition({ position }) {
   const map = useMap();
   useEffect(() => {
@@ -448,17 +427,16 @@ export default function CustomerForm() {
   const itemOptions = ["Electronics", "Clothes", "Food Delivery", "Documents", "Furniture", "Other"];
   const handleChange = (e) => setForm({ ...form, [e.target.name]: e.target.value });
 
+  // --- Submit Order ---
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (isSubmitting) return;
     setIsSubmitting(true);
-
     if (!position) {
       alert("❌ Please select location");
       setIsSubmitting(false);
       return;
     }
-
     try {
       const res = await api.post("/public/order/submit", {
         customer: {
@@ -486,31 +464,21 @@ export default function CustomerForm() {
 
   return (
     <>
-      {showWelcome ? (
-        <Welcome />
-      ) : (
+      {showWelcome ? <Welcome /> :
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4 }}>
           <Paper elevation={6} sx={{ padding: 3, maxWidth: 600, margin: "20px auto", borderRadius: 3 }}>
             <img src={Logo} alt="Logo" style={{ width: 90, height: 90, display: "block", margin: "0 auto 8px auto" }} />
-            <Typography variant="h5" fontWeight={600} textAlign="center" mb={3}>
-              Customer Delivery Request
-            </Typography>
+            <Typography variant="h5" fontWeight={600} textAlign="center" mb={3}>Customer Delivery Request</Typography>
 
             <Box component="form" onSubmit={handleSubmit} sx={{ display: "flex", flexDirection: "column", gap: 2.5 }}>
               <TextField label="Full Name" name="customer_name" variant="outlined" fullWidth required value={form.customer_name} onChange={handleChange} />
               <TextField label="Phone Number" name="customer_phone" type="tel" variant="outlined" fullWidth required value={form.customer_phone} onChange={handleChange} />
               <TextField label="Address" name="customer_address" variant="outlined" fullWidth multiline rows={2} required value={form.customer_address} onChange={handleChange} />
               <TextField select label="Type of Item" name="type_of_item" variant="outlined" fullWidth required value={form.type_of_item} onChange={handleChange}>
-                {itemOptions.map((item, idx) => (
-                  <MenuItem key={idx} value={item}>
-                    {item}
-                  </MenuItem>
-                ))}
+                {itemOptions.map((item, idx) => <MenuItem key={idx} value={item}>{item}</MenuItem>)}
               </TextField>
 
-              <Typography fontWeight={600} mt={2}>
-                Select Delivery Location
-              </Typography>
+              <Typography fontWeight={600} mt={2}>Select Delivery Location</Typography>
 
               <Box sx={{ height: "350px", width: "100%", borderRadius: "12px", overflow: "hidden", border: position ? "2px solid green" : "1px solid #ccc" }}>
                 <MapContainer center={[34.435, 35.836]} zoom={13} style={{ height: "100%", width: "100%" }}>
@@ -522,47 +490,33 @@ export default function CustomerForm() {
                 </MapContainer>
               </Box>
 
+              {position && form.customer_address &&
+                <Typography variant="subtitle1" textAlign="center" fontWeight={600} color="primary" mt={1}>
+                  Selected Area: {form.customer_address}
+                </Typography>
+              }
+
               <Button
                 variant="outlined"
                 onClick={() => {
-                  if (!navigator.geolocation) {
-                    alert("Geolocation not supported");
-                    return;
-                  }
+                  if (!navigator.geolocation) return alert("Geolocation not supported");
+                  navigator.geolocation.getCurrentPosition(async (pos) => {
+                    const { latitude, longitude, accuracy } = pos.coords;
+                    const coords = { lat: latitude, lng: longitude };
+                    setPosition(coords);
+                    const address = await getAddress(latitude, longitude);
+                    setForm(prev => ({ ...prev, customer_address: address }));
 
-                  navigator.geolocation.getCurrentPosition(
-                    async (pos) => {
-                      const { latitude, longitude, accuracy } = pos.coords;
-                      const coords = { lat: latitude, lng: longitude };
-                      setPosition(coords);
-
-                      try {
-                        const res = await fetch(
-                          `https://nominatim.openstreetmap.org/reverse?lat=${coords.lat}&lon=${coords.lng}&format=json`
-                        );
-                        const data = await res.json();
-                        const address = data.address?.city || data.address?.town || data.address?.village || data.display_name || "Current location";
-                        setForm((prev) => ({ ...prev, customer_address: address }));
-                      } catch {
-                        setForm((prev) => ({ ...prev, customer_address: "Current location" }));
-                      }
-
-                      if (accuracy > 50) {
-                        alert(`⚠️ GPS accuracy is low (±${Math.round(accuracy)}m). You may want to move outside or adjust the marker manually.`);
-                      }
-                    },
-                    () => alert("GPS permission denied"),
-                    { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
-                  );
+                    if (accuracy > 200) alert(`⚠️ GPS accuracy is very low (±${Math.round(accuracy)}m). Move outside for better location.`);
+                    else if (accuracy > 50) alert(`⚠️ GPS accuracy is low (±${Math.round(accuracy)}m). You may adjust the marker manually.`);
+                  }, () => alert("GPS permission denied"), { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 });
                 }}
               >
                 📍 Use My Current Location
               </Button>
 
               <Typography variant="caption" align="center" color={position ? "success.main" : "error"}>
-                {position
-                  ? `Location Selected: ${position.lat.toFixed(4)}, ${position.lng.toFixed(4)}`
-                  : "❌ No location selected. Please click on the map."}
+                {position ? `Location Selected: ${position.lat.toFixed(4)}, ${position.lng.toFixed(4)}` : "❌ No location selected. Please click on the map."}
               </Typography>
 
               <Button variant="contained" color="primary" type="submit" sx={{ paddingY: 1.4, borderRadius: 2, fontSize: "1rem" }}>
@@ -573,22 +527,14 @@ export default function CustomerForm() {
 
           <Modal open={open} onClose={() => setOpen(false)}>
             <Paper sx={{ position: "absolute", top: "50%", left: "50%", transform: "translate(-50%, -50%)", padding: 4, maxWidth: 400, textAlign: "center", borderRadius: 2 }}>
-              <Typography variant="h6" mb={2}>
-                Order Submitted!
-              </Typography>
-              <Typography variant="h5" mb={3} sx={{ fontWeight: "bold" }}>
-                {orderNumber}
-              </Typography>
-              <Button variant="contained" onClick={() => navigate("/TrackingForm", { state: { orderNumber } })}>
-                Track Order
-              </Button>
-              <Button variant="outlined" color="secondary" sx={{ ml: 1 }} onClick={() => setOpen(false)}>
-                Close
-              </Button>
+              <Typography variant="h6" mb={2}>Order Submitted!</Typography>
+              <Typography variant="h5" mb={3} sx={{ fontWeight: "bold" }}>{orderNumber}</Typography>
+              <Button variant="contained" onClick={() => navigate("/TrackingForm", { state: { orderNumber } })}>Track Order</Button>
+              <Button variant="outlined" color="secondary" sx={{ ml: 1 }} onClick={() => setOpen(false)}>Close</Button>
             </Paper>
           </Modal>
         </motion.div>
-      )}
+      }
     </>
   );
 }
