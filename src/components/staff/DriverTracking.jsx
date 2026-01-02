@@ -677,98 +677,113 @@ export default function DriverTracking({ initialOrderNumber, driverId }) {
   //     return;
   //   }
 
-  const startTracking = () => {
-  if (!isOrderAccepted || !currentOrderId) return;
+  const getDistanceMeters = (lat1, lon1, lat2, lon2) => {
+  const R = 6371000; // Earth radius in meters
+  const dLat = (lat2 - lat1) * Math.PI / 180;
+  const dLon = (lon2 - lon1) * Math.PI / 180;
 
-  const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(lat1 * Math.PI / 180) *
+    Math.cos(lat2 * Math.PI / 180) *
+    Math.sin(dLon / 2) * Math.sin(dLon / 2);
 
-  if (watchIdRef.current) {
-    navigator.geolocation.clearWatch(watchIdRef.current);
-  }
+  return R * (2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a)));
+};
 
-  setIsTracking(true);
-  setStatusMsg("📡 Initializing High-Precision GPS...");
 
-  // Variable to store the last sent position to calculate distance
-  let lastSentPos = { lat: 0, lng: 0 };
-  const MIN_DISTANCE_METERS = 5; // Don't send update if moved less than 5m
-  const MAX_ACCURACY_THRESHOLD = 60; // Ignore coordinates with accuracy worse than 60m
+  // const startTracking = () => {
+  // if (!isOrderAccepted || !currentOrderId) return;
 
-  if (isMobile && navigator.geolocation) {
-    watchIdRef.current = navigator.geolocation.watchPosition(
-      async (pos) => {
-        const { latitude, longitude, accuracy } = pos.coords;
+  // const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
 
-        // FILTER 1: Accuracy Check
-        // If the accuracy is poor (e.g., 100m+), we ignore this update to prevent "jumping"
-        if (accuracy > MAX_ACCURACY_THRESHOLD) {
-          console.warn(`Low accuracy ignored: ${accuracy}m`);
-          setStatusMsg(`📡 Poor Signal (${Math.round(accuracy)}m)...`);
-          return;
-        }
+  // if (watchIdRef.current) {
+  //   navigator.geolocation.clearWatch(watchIdRef.current);
+  // }
 
-        // FILTER 2: Distance Check (Haversine formula simplified)
-        const distance = Math.sqrt(
-          Math.pow(latitude - lastSentPos.lat, 2) + 
-          Math.pow(longitude - lastSentPos.lng, 2)
-        ) * 111320; // Convert to approx meters
+  // setIsTracking(true);
+  // setStatusMsg("📡 Initializing High-Precision GPS...");
 
-        if (distance < MIN_DISTANCE_METERS && lastSentPos.lat !== 0) {
-          // Update local state for smooth UI but don't hit the server/socket
-          setCurrentPos({ lat: latitude, lng: longitude });
-          setAccuracy(accuracy);
-          return;
-        }
+  // // Variable to store the last sent position to calculate distance
+  // let lastSentPos = { lat: 0, lng: 0 };
+  // const MIN_DISTANCE_METERS = 5; // Don't send update if moved less than 5m
+  // const MAX_ACCURACY_THRESHOLD = 60; // Ignore coordinates with accuracy worse than 60m
 
-        // Valid precise movement detected
-        setCurrentPos({ lat: latitude, lng: longitude });
-        setAccuracy(accuracy);
-        lastSentPos = { lat: latitude, lng: longitude };
-        setStatusMsg(`📡 Tracking: Accuracy ${Math.round(accuracy)}m`);
+  // if (isMobile && navigator.geolocation) {
+  //   watchIdRef.current = navigator.geolocation.watchPosition(
+  //     async (pos) => {
+  //       const { latitude, longitude, accuracy } = pos.coords;
 
-        if (socketRef.current?.connected) {
-          socketRef.current.emit("update-location", {
-            orderId: currentOrderId,
-            driverId,
-            lat: latitude,
-            lng: longitude,
-            accuracy,
-            timestamp: Date.now(),
-          });
-        }
-      },
-      (err) => {
-        let msg = "GPS Error";
-        if (err.code === 1) msg = "Permission Denied. Please enable GPS.";
-        if (err.code === 3) msg = "GPS Timeout. Retrying...";
-        setStatusMsg(`❌ ${msg}`);
-      },
-      { 
-        enableHighAccuracy: true, 
-        maximumAge: 1000, // Re-query location every 1s
-        timeout: 15000 
-      }
-    );
-    return;
-  }
+  //       // FILTER 1: Accuracy Check
+  //       // If the accuracy is poor (e.g., 100m+), we ignore this update to prevent "jumping"
+  //       if (accuracy > MAX_ACCURACY_THRESHOLD) {
+  //         console.warn(`Low accuracy ignored: ${accuracy}m`);
+  //         setStatusMsg(`📡 Poor Signal (${Math.round(accuracy)}m)...`);
+  //         return;
+  //       }
 
-    let lat = 34.4386, lng = 35.8495;
-    watchIdRef.current = setInterval(() => {
-      lat += (Math.random() - 0.5) * 0.0005;
-      lng += (Math.random() - 0.5) * 0.0005;
-      setCurrentPos({ lat, lng });
-      if (socketRef.current?.connected) {
-        socketRef.current.emit("update-location", {
-          orderId: currentOrderId,
-          driverId,
-          lat,
-          lng,
-          accuracy: 20,
-          timestamp: Date.now(),
-        });
-      }
-    }, 3000);
-  };
+  //       // FILTER 2: Distance Check (Haversine formula simplified)
+  //       const distance = Math.sqrt(
+  //         Math.pow(latitude - lastSentPos.lat, 2) + 
+  //         Math.pow(longitude - lastSentPos.lng, 2)
+  //       ) * 111320; // Convert to approx meters
+
+  //       if (distance < MIN_DISTANCE_METERS && lastSentPos.lat !== 0) {
+  //         // Update local state for smooth UI but don't hit the server/socket
+  //         setCurrentPos({ lat: latitude, lng: longitude });
+  //         setAccuracy(accuracy);
+  //         return;
+  //       }
+
+  //       // Valid precise movement detected
+  //       setCurrentPos({ lat: latitude, lng: longitude });
+  //       setAccuracy(accuracy);
+  //       lastSentPos = { lat: latitude, lng: longitude };
+  //       setStatusMsg(`📡 Tracking: Accuracy ${Math.round(accuracy)}m`);
+
+  //       if (socketRef.current?.connected) {
+  //         socketRef.current.emit("update-location", {
+  //           orderId: currentOrderId,
+  //           driverId,
+  //           lat: latitude,
+  //           lng: longitude,
+  //           accuracy,
+  //           timestamp: Date.now(),
+  //         });
+  //       }
+  //     },
+  //     (err) => {
+  //       let msg = "GPS Error";
+  //       if (err.code === 1) msg = "Permission Denied. Please enable GPS.";
+  //       if (err.code === 3) msg = "GPS Timeout. Retrying...";
+  //       setStatusMsg(`❌ ${msg}`);
+  //     },
+  //     { 
+  //       enableHighAccuracy: true, 
+  //       maximumAge: 1000, // Re-query location every 1s
+  //       timeout: 15000 
+  //     }
+  //   );
+  //   return;
+  // }
+
+  //   let lat = 34.4386, lng = 35.8495;
+  //   watchIdRef.current = setInterval(() => {
+  //     lat += (Math.random() - 0.5) * 0.0005;
+  //     lng += (Math.random() - 0.5) * 0.0005;
+  //     setCurrentPos({ lat, lng });
+  //     if (socketRef.current?.connected) {
+  //       socketRef.current.emit("update-location", {
+  //         orderId: currentOrderId,
+  //         driverId,
+  //         lat,
+  //         lng,
+  //         accuracy: 20,
+  //         timestamp: Date.now(),
+  //       });
+  //     }
+  //   }, 3000);
+  // };
 
 
 
@@ -778,6 +793,88 @@ export default function DriverTracking({ initialOrderNumber, driverId }) {
 
   // ===================== STOP TRACKING =====================
   // const stopTracking = () => setIsConfirmingStop(true);
+ 
+ 
+
+  const startTracking = () => {
+  if (!isOrderAccepted || !currentOrderId) return;
+
+  if (watchIdRef.current) {
+    navigator.geolocation.clearWatch(watchIdRef.current);
+  }
+
+  setIsTracking(true);
+  setStatusMsg("📡 Acquiring precise GPS signal...");
+
+  let lastSentPos = null;
+  let lastSentTime = 0;
+
+  const MIN_DISTANCE = 7;       // meters
+  const MIN_TIME = 2000;        // ms
+  const MAX_ACCURACY = 80;      // meters
+
+  watchIdRef.current = navigator.geolocation.watchPosition(
+    (pos) => {
+      const { latitude, longitude, accuracy, speed } = pos.coords;
+      const now = Date.now();
+
+      // 1️⃣ Reject bad accuracy
+      if (accuracy > MAX_ACCURACY) {
+        setStatusMsg(`📡 Weak GPS (${Math.round(accuracy)}m) – waiting...`);
+        return;
+      }
+
+      // 2️⃣ Distance filter
+      if (lastSentPos) {
+        const dist = getDistanceMeters(
+          lastSentPos.lat,
+          lastSentPos.lng,
+          latitude,
+          longitude
+        );
+
+        if (dist < MIN_DISTANCE && now - lastSentTime < MIN_TIME) {
+          return;
+        }
+      }
+
+      // 3️⃣ Accept location
+      const newPos = { lat: latitude, lng: longitude };
+
+      setCurrentPos(newPos);
+      setAccuracy(accuracy);
+      setStatusMsg(`📡 Live • Accuracy ${Math.round(accuracy)}m`);
+
+      lastSentPos = newPos;
+      lastSentTime = now;
+
+      socketRef.current?.emit("update-location", {
+        orderId: currentOrderId,
+        driverId,
+        lat: latitude,
+        lng: longitude,
+        accuracy,
+        speed,
+        timestamp: now,
+      });
+    },
+    (err) => {
+      let msg = "GPS error";
+      if (err.code === 1) msg = "Permission denied";
+      if (err.code === 2) msg = "Position unavailable";
+      if (err.code === 3) msg = "GPS timeout";
+
+      setStatusMsg(`❌ ${msg}`);
+    },
+    {
+      enableHighAccuracy: true,
+      maximumAge: 0,
+      timeout: 30000,
+    }
+  );
+};
+
+ 
   const stopTrackingImmediately = () => {
     navigator.geolocation.clearWatch(watchIdRef.current);
     watchIdRef.current = null;
