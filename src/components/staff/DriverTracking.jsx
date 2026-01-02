@@ -738,7 +738,7 @@ export default function DriverTracking({ initialOrderNumber, driverId }) {
       const res = await api.post(`/orders/cancel/${currentOrderId}`);
       if (res.status === 200) {
         alert(`Order #${currentOrderId} cancelled successfully.`);
-        // stopTrackingImmediately();
+        stopTrackingImmediately();
       }
     } catch (err) {
       console.error("Cancel error:", err);
