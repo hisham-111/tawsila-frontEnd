@@ -677,19 +677,6 @@ export default function DriverTracking({ initialOrderNumber, driverId }) {
   //     return;
   //   }
 
-  const getDistanceMeters = (lat1, lon1, lat2, lon2) => {
-  const R = 6371000; // Earth radius in meters
-  const dLat = (lat2 - lat1) * Math.PI / 180;
-  const dLon = (lon2 - lon1) * Math.PI / 180;
-
-  const a =
-    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-    Math.cos(lat1 * Math.PI / 180) *
-    Math.cos(lat2 * Math.PI / 180) *
-    Math.sin(dLon / 2) * Math.sin(dLon / 2);
-
-  return R * (2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a)));
-};
 
 
   // const startTracking = () => {
@@ -794,66 +781,88 @@ export default function DriverTracking({ initialOrderNumber, driverId }) {
   // ===================== STOP TRACKING =====================
   // const stopTracking = () => setIsConfirmingStop(true);
  
+
+  const startSimulation = (sendLocation) => {
+  let lat = 34.4386;
+  let lng = 35.8495;
+
+  setStatusMsg("🧪 Simulation mode (GPS unavailable)");
+
+  watchIdRef.current = setInterval(() => {
+    lat += (Math.random() - 0.5) * 0.0003;
+    lng += (Math.random() - 0.5) * 0.0003;
+    sendLocation(lat, lng, 20);
+  }, 3000);
+};
+
  
 const startTracking = () => {
   if (!isOrderAccepted || !currentOrderId) return;
 
-  // Cleanup
+  const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+
+  // تنظيف أي tracking سابق
   if (watchIdRef.current) {
     navigator.geolocation.clearWatch(watchIdRef.current);
-    watchIdRef.current = null;
-  }
-
-  if (!navigator.geolocation) {
-    setStatusMsg("❌ GPS not supported on this device");
-    return;
+    clearInterval(watchIdRef.current);
   }
 
   setIsTracking(true);
-  setStatusMsg("📡 Searching for GPS signal...");
+  setStatusMsg("📡 Searching for GPS...");
 
-  watchIdRef.current = navigator.geolocation.watchPosition(
-    (pos) => {
-      const { latitude, longitude, accuracy } = pos.coords;
+  const sendLocation = (lat, lng, accuracy = 20) => {
+    setCurrentPos({ lat, lng });
+    setAccuracy(accuracy);
 
-      // ✅ 1. اعرض الموقع دائمًا (حتى لو كان تقريبي)
-      setCurrentPos({ lat: latitude, lng: longitude });
-      setAccuracy(accuracy);
-
-      // ✅ 2. حدّد الحالة (UI only)
-      if (accuracy > 1500) {
-        setStatusMsg(`📡 Approximate location (${Math.round(accuracy)}m)`);
-      } else if (accuracy > 100) {
-        setStatusMsg(`📡 Improving accuracy (${Math.round(accuracy)}m)`);
-      } else {
-        setStatusMsg(`📡 GPS locked (${Math.round(accuracy)}m)`);
-      }
-
-      // ✅ 3. قرار الإرسال للسيرفر
-      // لا تمنع الإرسال كليًا – فقط ميّز الجودة
-      if (socketRef.current?.connected) {
-        socketRef.current.emit("update-location", {
-          orderId: currentOrderId,
-          driverId,
-          lat: latitude,
-          lng: longitude,
-          accuracy,
-          source: accuracy > 1000 ? "network" : "gps",
-          timestamp: Date.now(),
-        });
-      }
-    },
-    (err) => {
-      console.error("GPS Error:", err);
-      setStatusMsg("❌ GPS error: " + err.message);
-    },
-    {
-      enableHighAccuracy: true,
-      maximumAge: 0,
-      timeout: 30000,
+    if (socketRef.current?.connected) {
+      socketRef.current.emit("update-location", {
+        orderId: currentOrderId,
+        driverId,
+        lat,
+        lng,
+        accuracy,
+        timestamp: Date.now(),
+      });
     }
-  );
+  };
+
+  // ======================
+  // 📱 Mobile with GPS
+  if (isMobile && navigator.geolocation) {
+    watchIdRef.current = navigator.geolocation.watchPosition(
+      (pos) => {
+        const { latitude, longitude, accuracy } = pos.coords;
+
+        // ❌ دقة سيئة جدًا
+        if (accuracy > 1000) {
+          setStatusMsg("⚠️ GPS accuracy too low, switching to simulation...");
+          navigator.geolocation.clearWatch(watchIdRef.current);
+          startSimulation(sendLocation);
+          return;
+        }
+
+        setStatusMsg(`📡 GPS accuracy: ${Math.round(accuracy)}m`);
+        sendLocation(latitude, longitude, accuracy);
+      },
+      (err) => {
+        console.warn("GPS error:", err.message);
+        setStatusMsg("⚠️ GPS failed, switching to simulation...");
+        startSimulation(sendLocation);
+      },
+      {
+        enableHighAccuracy: true,
+        timeout: 15000,
+        maximumAge: 5000,
+      }
+    );
+    return;
+  }
+
+  // ======================
+  // 💻 Desktop / fallback
+  startSimulation(sendLocation);
 };
+
 
 
  
