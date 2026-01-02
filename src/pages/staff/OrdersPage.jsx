@@ -70,20 +70,50 @@ export default function OrdersPage() {
     setEditStatus(order.status);
   };
 
+  // const handleUpdate = async () => {
+  //   if (!editingOrder) return;
+  //   try {
+  //     const updateData = { status: editStatus };
+
+  //      if (editStatus === "cancelled") {
+  //     updateData.canceledAt = new Date(); // sends current date
+  //   }
+  //     const res = await api.put(`/orders/${editingOrder._id}`, { status: editStatus });
+  //     setOrders((prev) =>
+  //       prev.map((order) => (order._id === editingOrder._id ? res.data.order : order))
+  //     );
+  //     setEditingOrder(null);
+  //     setSnackbar({ open: true, message: "Order updated successfully", severity: "success" });
+  //   } catch (err) {
+  //     console.error("Error updating order:", err.response?.data?.error || err.message);
+  //     setSnackbar({ open: true, message: "Failed to update order", severity: "error" });
+  //   }
+  // };
+
+
   const handleUpdate = async () => {
-    if (!editingOrder) return;
-    try {
-      const res = await api.put(`/orders/${editingOrder._id}`, { status: editStatus });
-      setOrders((prev) =>
-        prev.map((order) => (order._id === editingOrder._id ? res.data.order : order))
-      );
-      setEditingOrder(null);
-      setSnackbar({ open: true, message: "Order updated successfully", severity: "success" });
-    } catch (err) {
-      console.error("Error updating order:", err.response?.data?.error || err.message);
-      setSnackbar({ open: true, message: "Failed to update order", severity: "error" });
+  if (!editingOrder) return;
+  try {
+    const updateData = { status: editStatus };
+
+    // Add cancelledAt if status is cancelled
+    if (editStatus === "cancelled") {
+      updateData.cancelledAt = new Date();
     }
-  };
+
+    // Use updateData here, not just { status: editStatus }
+    const res = await api.put(`/orders/${editingOrder._id}`, updateData);
+
+    setOrders((prev) =>
+      prev.map((order) => (order._id === editingOrder._id ? res.data.order : order))
+    );
+    setEditingOrder(null);
+    setSnackbar({ open: true, message: "Order updated successfully", severity: "success" });
+  } catch (err) {
+    console.error("Error updating order:", err.response?.data?.error || err.message);
+    setSnackbar({ open: true, message: "Failed to update order", severity: "error" });
+  }
+};
 
   const filteredOrders = orders.filter((order) =>
     order.order_number.slice(-6).toLowerCase().includes(search.toLowerCase()) ||
@@ -163,11 +193,19 @@ export default function OrdersPage() {
                   <TableCell sx={{ py: 1, px: 1 }}>
                     <Chip label={order.status} color={statusColor[order.status]} size="small" />
                   </TableCell>
-                  <TableCell sx={{ py: 1, px: 1 }}>{dayjs(order.createdAt).format("DD/MM/YYYY HH:mm")}
-                  </TableCell>
+                  {/* <TableCell sx={{ py: 1, px: 1 }}>{dayjs(order.createdAt).format("DD/MM/YYYY HH:mm")}
+                    {order.customer.canceledAt}
+                  </TableCell> */}
 
-                  <TableCell sx={{ py: 1, px: 1 }}> {order.customer.canceledAt}
-                  </TableCell>
+                <TableCell sx={{ py: 1, px: 1 }}>
+                  {dayjs(order.createdAt).format("DD/MM/YYYY HH:mm")}
+                  {order.status === "cancelled" && order.cancelledAt && (
+                    <Typography variant="caption" color="error">
+                      {" | Cancelled: " + dayjs(order.cancelledAt).format("DD/MM/YYYY HH:mm")}
+                    </Typography>
+                  )}
+                </TableCell>
+
 
                   <TableCell sx={{ py: 1, px: 1 }}>
                     <IconButton color="primary" onClick={() => handleEdit(order)}>
@@ -222,7 +260,7 @@ export default function OrdersPage() {
             <option value="received">Received</option>
             <option value="in_transit">In Transit</option>
             <option value="delivered">Delivered</option>
-            <option value="canceled">cancelled</option>
+            <option value="cancelled">cancelled</option>
           </TextField>
           <Box display="flex" justifyContent="flex-end" gap={1}>
             <Button variant="contained" onClick={handleUpdate}>
