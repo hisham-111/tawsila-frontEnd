@@ -703,15 +703,15 @@ export default function DriverTracking({ initialOrderNumber, driverId }) {
 
   // ===================== STOP TRACKING =====================
   // const stopTracking = () => setIsConfirmingStop(true);
-  // const stopTrackingImmediately = () => {
-  //   navigator.geolocation.clearWatch(watchIdRef.current);
-  //   watchIdRef.current = null;
-  //   setIsTracking(false);
-  //   setCurrentOrderId(null);
-  //   setIsOrderAccepted(false);
-  //   setStatusMsg("Delivery stopped.");
-  //   fetchAvailableOrders();
-  // }
+  const stopTrackingImmediately = () => {
+    navigator.geolocation.clearWatch(watchIdRef.current);
+    watchIdRef.current = null;
+    setIsTracking(false);
+    setCurrentOrderId(null);
+    setIsOrderAccepted(false);
+    setStatusMsg("Delivery stopped.");
+    fetchAvailableOrders();
+  }
 
   // const handleConfirmStop = async () => {
   //   setIsConfirmingStop(false);
@@ -721,7 +721,7 @@ export default function DriverTracking({ initialOrderNumber, driverId }) {
   // ===================== MARK AS DELIVERED =====================
   const handleMarkDelivered = async () => {
     setIsConfirmingDelivered(false);
-    // stopTrackingImmediately();
+    stopTrackingImmediately();
 
     if (socketRef.current?.connected && currentOrderId && currentPos) {
       socketRef.current.emit("update-location", { orderId: currentOrderId, driverId, lat: currentPos.lat, lng: currentPos.lng });
