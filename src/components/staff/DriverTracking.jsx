@@ -798,36 +798,39 @@ export default function DriverTracking({ initialOrderNumber, driverId }) {
 const startTracking = () => {
   if (!isOrderAccepted || !currentOrderId) return;
 
+  // Cleanup
   if (watchIdRef.current) {
     navigator.geolocation.clearWatch(watchIdRef.current);
     watchIdRef.current = null;
   }
-
-  setIsTracking(true);
-  setStatusMsg("📡 Searching for GPS signal...");
 
   if (!navigator.geolocation) {
     setStatusMsg("❌ GPS not supported on this device");
     return;
   }
 
+  setIsTracking(true);
+  setStatusMsg("📡 Searching for GPS signal...");
+
   watchIdRef.current = navigator.geolocation.watchPosition(
     (pos) => {
       const { latitude, longitude, accuracy } = pos.coords;
 
-      // ✅ اعرض الموقع مهما كانت الدقة
+      // ✅ 1. اعرض الموقع دائمًا (حتى لو كان تقريبي)
       setCurrentPos({ lat: latitude, lng: longitude });
       setAccuracy(accuracy);
 
-      if (accuracy > 1000) {
-        setStatusMsg(`📡 Approximate location (${Math.round(accuracy)}m) – waiting for GPS fix...`);
+      // ✅ 2. حدّد الحالة (UI only)
+      if (accuracy > 1500) {
+        setStatusMsg(`📡 Approximate location (${Math.round(accuracy)}m)`);
       } else if (accuracy > 100) {
-        setStatusMsg(`📡 Medium accuracy (${Math.round(accuracy)}m)`);
+        setStatusMsg(`📡 Improving accuracy (${Math.round(accuracy)}m)`);
       } else {
-        setStatusMsg(`📡 High accuracy (${Math.round(accuracy)}m)`);
+        setStatusMsg(`📡 GPS locked (${Math.round(accuracy)}m)`);
       }
 
-      // ✅ أرسل الموقع دائمًا
+      // ✅ 3. قرار الإرسال للسيرفر
+      // لا تمنع الإرسال كليًا – فقط ميّز الجودة
       if (socketRef.current?.connected) {
         socketRef.current.emit("update-location", {
           orderId: currentOrderId,
@@ -835,13 +838,14 @@ const startTracking = () => {
           lat: latitude,
           lng: longitude,
           accuracy,
+          source: accuracy > 1000 ? "network" : "gps",
           timestamp: Date.now(),
         });
       }
     },
     (err) => {
-      console.error(err);
-      setStatusMsg("❌ GPS Error: " + err.message);
+      console.error("GPS Error:", err);
+      setStatusMsg("❌ GPS error: " + err.message);
     },
     {
       enableHighAccuracy: true,
