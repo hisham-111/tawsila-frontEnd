@@ -23,36 +23,21 @@ function MapClickHandler({ setPosition, setForm }) {
     const map = useMap(); 
 
     
-//     useMapEvents({
-//         click(e) {
-//             // 💡 التصحيح: استخدام دالة wrap() لـ Leaflet لضمان أن خط الطول بين -180 و 180
-//             const correctedLatLng = e.latlng.wrap(); 
+    useMapEvents({
+        click(e) {
+            const corrected = e.latlng.wrap();
+            setPosition({ lat: corrected.lat, lng: corrected.lng });
 
-//             console.log("✅ Final Click Coords:", correctedLatLng); // للتأكد في الكونسول
-            
-//             setPosition(correctedLatLng);
-//             // عند النقر، نحدث العنوان ونحرك الخريطة
-//             setForm((prev) => ({ ...prev, customer_address: "Location manually selected on map." }));
-//             map.flyTo(correctedLatLng, map.getZoom()); 
-//         },
-//     });
-//     return null;
-// }
+            setForm(prev => ({
+            ...prev,
+            customer_address: "Location selected manually on map"
+            }));
 
-useMapEvents({
-  click(e) {
-    const corrected = e.latlng.wrap();
-    setPosition({ lat: corrected.lat, lng: corrected.lng });
-
-    setForm(prev => ({
-      ...prev,
-      customer_address: "Location selected manually on map"
-    }));
-
-    map.flyTo(corrected, map.getZoom());
-  }
-});
-
+            map.flyTo(corrected, map.getZoom());
+        }
+        });
+    return null;
+}
 
 // 2. مكون البحث (استمرار استخدام Esri مع التبديل التلقائي لضمان الثبات)
 
