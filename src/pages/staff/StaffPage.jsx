@@ -168,6 +168,7 @@ const handlePasswordReset = async (staffId, newPassword) => {
     .filter(
       (staff) =>
         staff.full_name.toLowerCase().includes(search.toLowerCase()) ||
+        staff.username.toLowerCase().includes(search.toLowerCase()) ||
         staff.phone.includes(search) ||
         staff.address.toLowerCase().includes(search.toLowerCase())
     );
@@ -291,6 +292,7 @@ const handlePasswordReset = async (staffId, newPassword) => {
               <TableHead>
                 <TableRow>
                   <TableCell>Name</TableCell>
+                  <TableCell>Username</TableCell>
                   <TableCell>Phone</TableCell>
                   <TableCell>Address</TableCell>
                   <TableCell>Availability</TableCell>
@@ -301,6 +303,7 @@ const handlePasswordReset = async (staffId, newPassword) => {
                 {filteredStaff.map((staff) => (
                   <TableRow key={staff._id} >
                     <TableCell>{staff.full_name}</TableCell>
+                    <TableCell>{staff.username}</TableCell>
                     <TableCell>{staff.phone}</TableCell>
                     <TableCell sx={{ whiteSpace: "normal", wordBreak: "break-word" }}>
                       <Tooltip title={staff.address} arrow>
