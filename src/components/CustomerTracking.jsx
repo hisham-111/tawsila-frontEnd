@@ -268,7 +268,7 @@ export default function CustomerTracking() {
                         }}>
                             <Typography variant="body1" fontWeight="600" color="primary.main" sx={{ fontSize: { xs: "0.8rem", sm: "1rem" } }}>Estimated Time ⏱️ : {eta}</Typography>
                             <Typography variant="body1" fontWeight="600" color="text.secondary" sx={{ fontSize: { xs: "0.8rem", sm: "1rem" } }}>Remaining Distance 📏 : {distance}</Typography>
-                        </Box>
+                           </Box>
                           )}
 
                     <MapContainer center={customerLocation ? [customerLocation.lat, customerLocation.lng] : [33.888, 35.495]} zoom={13} style={{ height: "100%", width: "100%" }}>

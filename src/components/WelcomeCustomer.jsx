@@ -1,5 +1,3 @@
-// src/components/WelcomeCustomer.jsx
-
 import { Box, Paper, Typography } from "@mui/material";
 import { motion } from "framer-motion";
 import Logo from "../assets/Logo.png";
