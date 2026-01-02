@@ -795,76 +795,53 @@ export default function DriverTracking({ initialOrderNumber, driverId }) {
   // const stopTracking = () => setIsConfirmingStop(true);
  
  
-
-  const startTracking = () => {
+const startTracking = () => {
   if (!isOrderAccepted || !currentOrderId) return;
 
   if (watchIdRef.current) {
     navigator.geolocation.clearWatch(watchIdRef.current);
+    watchIdRef.current = null;
   }
 
   setIsTracking(true);
-  setStatusMsg("📡 Acquiring precise GPS signal...");
+  setStatusMsg("📡 Searching for GPS signal...");
 
-  let lastSentPos = null;
-  let lastSentTime = 0;
-
-  const MIN_DISTANCE = 7;       // meters
-  const MIN_TIME = 2000;        // ms
-  const MAX_ACCURACY = 80;      // meters
+  if (!navigator.geolocation) {
+    setStatusMsg("❌ GPS not supported on this device");
+    return;
+  }
 
   watchIdRef.current = navigator.geolocation.watchPosition(
     (pos) => {
-      const { latitude, longitude, accuracy, speed } = pos.coords;
-      const now = Date.now();
+      const { latitude, longitude, accuracy } = pos.coords;
 
-      // 1️⃣ Reject bad accuracy
-      if (accuracy > MAX_ACCURACY) {
-        setStatusMsg(`📡 Weak GPS (${Math.round(accuracy)}m) – waiting...`);
-        return;
-      }
-
-      // 2️⃣ Distance filter
-      if (lastSentPos) {
-        const dist = getDistanceMeters(
-          lastSentPos.lat,
-          lastSentPos.lng,
-          latitude,
-          longitude
-        );
-
-        if (dist < MIN_DISTANCE && now - lastSentTime < MIN_TIME) {
-          return;
-        }
-      }
-
-      // 3️⃣ Accept location
-      const newPos = { lat: latitude, lng: longitude };
-
-      setCurrentPos(newPos);
+      // ✅ اعرض الموقع مهما كانت الدقة
+      setCurrentPos({ lat: latitude, lng: longitude });
       setAccuracy(accuracy);
-      setStatusMsg(`📡 Live • Accuracy ${Math.round(accuracy)}m`);
 
-      lastSentPos = newPos;
-      lastSentTime = now;
+      if (accuracy > 1000) {
+        setStatusMsg(`📡 Approximate location (${Math.round(accuracy)}m) – waiting for GPS fix...`);
+      } else if (accuracy > 100) {
+        setStatusMsg(`📡 Medium accuracy (${Math.round(accuracy)}m)`);
+      } else {
+        setStatusMsg(`📡 High accuracy (${Math.round(accuracy)}m)`);
+      }
 
-      socketRef.current?.emit("update-location", {
-        orderId: currentOrderId,
-        driverId,
-        lat: latitude,
-        lng: longitude,
-        accuracy,
-        speed,
-        timestamp: now,
-      });
+      // ✅ أرسل الموقع دائمًا
+      if (socketRef.current?.connected) {
+        socketRef.current.emit("update-location", {
+          orderId: currentOrderId,
+          driverId,
+          lat: latitude,
+          lng: longitude,
+          accuracy,
+          timestamp: Date.now(),
+        });
+      }
     },
     (err) => {
-      let msg = "GPS error";
-      if (err.code === 1) msg = "Permission denied";
-      if (err.code === 2) msg = "Position unavailable";
-      if (err.code === 3) msg = "GPS timeout";
-
-      setStatusMsg(`❌ ${msg}`);
+      console.error(err);
+      setStatusMsg("❌ GPS Error: " + err.message);
     },
     {
       enableHighAccuracy: true,
@@ -873,6 +850,7 @@ export default function DriverTracking({ initialOrderNumber, driverId }) {
     }
   );
 };
+
 
  
   const stopTrackingImmediately = () => {
