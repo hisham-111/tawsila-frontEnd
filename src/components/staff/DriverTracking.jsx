@@ -641,41 +641,116 @@ export default function DriverTracking({ initialOrderNumber, driverId }) {
   }
 
   // ===================== START TRACKING =====================
+  // const startTracking = () => {
+  //   if (!isOrderAccepted || !currentOrderId) return;
+
+  //   const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+
+  //   if (watchIdRef.current) {
+  //     navigator.geolocation.clearWatch(watchIdRef.current);
+  //   }
+
+  //   setIsTracking(true);
+  //   setStatusMsg("📡 Starting location tracking...");
+
+  //   if (isMobile && navigator.geolocation) {
+  //     watchIdRef.current = navigator.geolocation.watchPosition(
+  //       async (pos) => {
+  //         const { latitude, longitude, accuracy } = pos.coords;
+  //         setCurrentPos({ lat: latitude, lng: longitude });
+  //         setAccuracy(accuracy);
+  //         setStatusMsg(`📡 GPS accuracy: ${Math.round(accuracy)}m`);
+  //         if (socketRef.current?.connected) {
+  //           socketRef.current.emit("update-location", {
+  //             orderId: currentOrderId,
+  //             driverId,
+  //             lat: latitude,
+  //             lng: longitude,
+  //             accuracy,
+  //             timestamp: Date.now(),
+  //           });
+  //         }
+  //       },
+  //       (err) => setStatusMsg("❌ GPS Error: " + err.message),
+  //       { enableHighAccuracy: true, maximumAge: 0, timeout: 10000 }
+  //     );
+  //     return;
+  //   }
+
   const startTracking = () => {
-    if (!isOrderAccepted || !currentOrderId) return;
+  if (!isOrderAccepted || !currentOrderId) return;
 
-    const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+  const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
 
-    if (watchIdRef.current) {
-      navigator.geolocation.clearWatch(watchIdRef.current);
-    }
+  if (watchIdRef.current) {
+    navigator.geolocation.clearWatch(watchIdRef.current);
+  }
 
-    setIsTracking(true);
-    setStatusMsg("📡 Starting location tracking...");
+  setIsTracking(true);
+  setStatusMsg("📡 Initializing High-Precision GPS...");
 
-    if (isMobile && navigator.geolocation) {
-      watchIdRef.current = navigator.geolocation.watchPosition(
-        async (pos) => {
-          const { latitude, longitude, accuracy } = pos.coords;
+  // Variable to store the last sent position to calculate distance
+  let lastSentPos = { lat: 0, lng: 0 };
+  const MIN_DISTANCE_METERS = 5; // Don't send update if moved less than 5m
+  const MAX_ACCURACY_THRESHOLD = 60; // Ignore coordinates with accuracy worse than 60m
+
+  if (isMobile && navigator.geolocation) {
+    watchIdRef.current = navigator.geolocation.watchPosition(
+      async (pos) => {
+        const { latitude, longitude, accuracy } = pos.coords;
+
+        // FILTER 1: Accuracy Check
+        // If the accuracy is poor (e.g., 100m+), we ignore this update to prevent "jumping"
+        if (accuracy > MAX_ACCURACY_THRESHOLD) {
+          console.warn(`Low accuracy ignored: ${accuracy}m`);
+          setStatusMsg(`📡 Poor Signal (${Math.round(accuracy)}m)...`);
+          return;
+        }
+
+        // FILTER 2: Distance Check (Haversine formula simplified)
+        const distance = Math.sqrt(
+          Math.pow(latitude - lastSentPos.lat, 2) + 
+          Math.pow(longitude - lastSentPos.lng, 2)
+        ) * 111320; // Convert to approx meters
+
+        if (distance < MIN_DISTANCE_METERS && lastSentPos.lat !== 0) {
+          // Update local state for smooth UI but don't hit the server/socket
           setCurrentPos({ lat: latitude, lng: longitude });
           setAccuracy(accuracy);
-          setStatusMsg(`📡 GPS accuracy: ${Math.round(accuracy)}m`);
-          if (socketRef.current?.connected) {
-            socketRef.current.emit("update-location", {
-              orderId: currentOrderId,
-              driverId,
-              lat: latitude,
-              lng: longitude,
-              accuracy,
-              timestamp: Date.now(),
-            });
-          }
-        },
-        (err) => setStatusMsg("❌ GPS Error: " + err.message),
-        { enableHighAccuracy: true, maximumAge: 0, timeout: 10000 }
-      );
-      return;
-    }
+          return;
+        }
+
+        // Valid precise movement detected
+        setCurrentPos({ lat: latitude, lng: longitude });
+        setAccuracy(accuracy);
+        lastSentPos = { lat: latitude, lng: longitude };
+        setStatusMsg(`📡 Tracking: Accuracy ${Math.round(accuracy)}m`);
+
+        if (socketRef.current?.connected) {
+          socketRef.current.emit("update-location", {
+            orderId: currentOrderId,
+            driverId,
+            lat: latitude,
+            lng: longitude,
+            accuracy,
+            timestamp: Date.now(),
+          });
+        }
+      },
+      (err) => {
+        let msg = "GPS Error";
+        if (err.code === 1) msg = "Permission Denied. Please enable GPS.";
+        if (err.code === 3) msg = "GPS Timeout. Retrying...";
+        setStatusMsg(`❌ ${msg}`);
+      },
+      { 
+        enableHighAccuracy: true, 
+        maximumAge: 1000, // Re-query location every 1s
+        timeout: 15000 
+      }
+    );
+    return;
+  }
 
     let lat = 34.4386, lng = 35.8495;
     watchIdRef.current = setInterval(() => {
