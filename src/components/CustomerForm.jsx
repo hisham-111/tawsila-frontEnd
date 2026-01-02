@@ -304,46 +304,41 @@ export default function CustomerForm() {
                     <Button
                         variant="outlined"
                         onClick={() => {
-                        if (!navigator.geolocation) {
-                        alert("Geolocation not supported");
-                        return;
-                        }
-
-                        navigator.geolocation.getCurrentPosition(
-                        async (pos) => {
-                            const { latitude, longitude, accuracy } = pos.coords;
-
-                            // 🧠 تحقق من الدقة
-                            if (accuracy > 50) {
-                            alert(`GPS accuracy is low (±${Math.round(accuracy)}m). Please move outside.`);
+                            if (!navigator.geolocation) {
+                            alert("Geolocation not supported");
                             return;
                             }
 
-                            const coords = { lat: latitude, lng: longitude };
-                            setPosition(coords);
+                            navigator.geolocation.getCurrentPosition(
+                            async (pos) => {
+                                const { latitude, longitude, accuracy } = pos.coords;
 
-                            // Reverse Geocoding
-                            const res = await fetch(
-                            `https://nominatim.openstreetmap.org/reverse?lat=${latitude}&lon=${longitude}&format=json`
+                                const coords = { lat: latitude, lng: longitude };
+                                setPosition(coords);
+
+                                // Reverse Geocoding
+                                const res = await fetch(
+                                `https://nominatim.openstreetmap.org/reverse?lat=${latitude}&lon=${longitude}&format=json`
+                                );
+                                const data = await res.json();
+
+                                setForm(prev => ({
+                                ...prev,
+                                customer_address: data.display_name || "Current location"
+                                }));
+
+                                if (accuracy > 50) {
+                                alert(`⚠️ GPS accuracy is low (±${Math.round(accuracy)}m). You may want to move outside or adjust the marker manually.`);
+                                }
+                            },
+                            () => alert("GPS permission denied"),
+                            { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
                             );
-                            const data = await res.json();
+                        }}
+                        >
+                        📍 Use My Current Location
+                        </Button>
 
-                            setForm(prev => ({
-                            ...prev,
-                            customer_address: data.display_name || "Current location"
-                            }));
-                        },
-                        () => alert("GPS permission denied"),
-                        {
-                            enableHighAccuracy: true,
-                            timeout: 15000,
-                            maximumAge: 0,
-                        }
-                        );
-                    }}
-                    >
-                    📍 Use My Current Location
-                  </Button>
 
 
                     <Typography variant="caption" align="center" color={position ? "success.main" : "error"}>
