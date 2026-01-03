@@ -9,6 +9,8 @@ import L from "leaflet";
 import api from "./api"; 
 import Logo from "../assets/Logo.png"; 
 import Welcome from "../components/WelcomeCustomer";
+import { Snackbar, Alert } from "@mui/material";
+
 
 // --- إصلاح أيقونات Leaflet ---
 delete L.Icon.Default.prototype._getIconUrl;
@@ -214,6 +216,15 @@ export default function CustomerForm() {
     const [open, setOpen] = useState(false);
     const [showWelcome, setShowWelcome] = useState(true);
     const [isSubmitting, setIsSubmitting] = useState(false);
+    const [notification, setNotification] = useState({
+    open: false,
+    severity: "info", // "error", "warning", "success", "info"
+    message: ""
+});
+
+    const showNotification = (message, severity = "info") => {
+        setNotification({ open: true, message, severity });
+    };
 
     const itemOptions = ["Electronics", "Clothes", "Food Delivery", "Documents", "Furniture", "Other"];
     const handleChange = (e) => setForm({ ...form, [e.target.name]: e.target.value });
@@ -307,11 +318,13 @@ export default function CustomerForm() {
                                 const address = await getAddress(coords.lat, coords.lng);
                                 setForm(prev => ({ ...prev, customer_address: address }));
 
-                                // if (pos.coords.accuracy > 200) alert(`⚠️ GPS accuracy very low (±${Math.round(pos.coords.accuracy)}m). Move outside for better accuracy.`);
-                                if (pos.coords.accuracy > 200) null;
-                                else if (pos.coords.accuracy > 50) null;
-                                // else if (pos.coords.accuracy > 50) alert(`⚠️ GPS accuracy low (±${Math.round(pos.coords.accuracy)}m). You can adjust marker manually.`);
-                            }, () => alert("GPS permission denied"), { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 });
+                                 // Check GPS accuracy
+                                    if (pos.coords.accuracy > 200) {
+                                        showNotification(`⚠️ GPS accuracy very low (±${Math.round(pos.coords.accuracy)}m). Move outside for better accuracy.`, "warning");
+                                    } else if (pos.coords.accuracy > 50) {
+                                        showNotification(`⚠️ GPS accuracy low (±${Math.round(pos.coords.accuracy)}m). You can adjust marker manually.`, "info");
+                                    }
+                            }, () => showNotification("GPS permission denied"), { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 });
                         }}
                     >
                         📍 Use My Current Location
