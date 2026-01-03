@@ -643,7 +643,7 @@ export default function DriverTracking({ initialOrderNumber, driverId }) {
     socket.on("order-cancelled", (data) => {
       if (data.orderId === currentOrderId) {
         alert(`Order #${currentOrderId} has been cancelled!`);
-        // stopTrackingImmediately();
+        stopTrackingImmediately();
       }
       setAvailableOrders(prev => prev.filter(o => o.order_number !== data.orderId));
     });
@@ -856,7 +856,9 @@ const startTracking = () => {
       {
         enableHighAccuracy: true,
         timeout: 15000,
-        maximumAge: 5000,
+        // maximumAge: 5000,
+          maximumAge: 0,
+
       }
     );
     return;
