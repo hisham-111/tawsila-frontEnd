@@ -17,6 +17,11 @@ L.Icon.Default.mergeOptions({
     shadowUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png",
 });
 
+
+
+
+
+
 // --- Helper: Reverse Geocoding تفصيلي ---
 async function getAddress(lat, lng) {
     try {
@@ -35,6 +40,8 @@ async function getAddress(lat, lng) {
         return "Unknown location";
     }
 }
+
+
 
 // --- Map click handler مع جلب العنوان التفصيلي ---
 function MapClickHandler({ setPosition, setForm }) {
@@ -171,6 +178,10 @@ export default function CustomerForm() {
         const timer = setTimeout(() => setShowWelcome(false), 3000);
         return () => clearTimeout(timer);
     }, []);
+
+
+
+    
 
     return (
         <>

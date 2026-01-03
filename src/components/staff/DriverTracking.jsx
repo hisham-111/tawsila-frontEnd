@@ -459,6 +459,40 @@ const homeIcon = new L.divIcon({
   popupAnchor: [0, -36],
 });
 
+
+// ===================== MAP CENTERING =====================
+function MapCentering({ driverPos, customerPos }) {
+  const map = useMap();
+  useEffect(() => {
+    if (driverPos && customerPos) {
+      map.fitBounds([driverPos, [customerPos.lat, customerPos.lng]], { padding: [50, 50], maxZoom: 16 });
+    } else if (driverPos) {
+      map.setView(driverPos, map.getZoom() < 14 ? 14 : map.getZoom());
+    } else if (customerPos) {
+      map.setView([customerPos.lat, customerPos.lng], 14);
+    }
+  }, [driverPos, customerPos, map]);
+  return null;
+}
+
+
+// ===================== ETA CALCULATION =====================
+const calculateETA = (driverPos, customerPos, avgSpeedKmh = 30) => {
+  if (!driverPos || !customerPos) return null;
+  const R = 6371; // km
+  const dLat = (customerPos.lat - driverPos.lat) * Math.PI / 180;
+  const dLng = (customerPos.lng - driverPos.lng) * Math.PI / 180;
+  const a = 
+    Math.sin(dLat/2) * Math.sin(dLat/2) +
+    Math.cos(driverPos.lat * Math.PI / 180) * Math.cos(customerPos.lat * Math.PI / 180) *
+    Math.sin(dLng/2) * Math.sin(dLng/2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+  const distanceKm = R * c;
+  const etaMinutes = (distanceKm / avgSpeedKmh) * 60;
+  return Math.round(etaMinutes);
+};
+
+
 // ===================== SOCKET & USER =====================
 const SOCKET_URL = import.meta.env.VITE_BACKEND_URL || "https://tawsila-backend-0shs.onrender.com";
 const userRole = 'driver';
@@ -838,6 +872,9 @@ const handleMarkDelivered = async () => {
           <Typography><strong>Order ID:</strong> {currentOrderId}</Typography>
           <Typography><strong>Driver ID:</strong> {driverId}</Typography>
           <Typography sx={{ display: "flex", alignItems: "center", gap: 1 }}><GpsFixed fontSize="small" color="primary" /> <strong>Status:</strong> {statusMsg}</Typography>
+          {currentPos && customerPos && (
+          <Typography><strong>ETA:</strong> {calculateETA(currentPos, customerPos) ?? "Calculating..."} min</Typography>
+             )}
         </Box>
 
         <Box sx={{ height: 300, width: "100%", borderRadius: 3, overflow: "hidden", mb: 2 }}>
@@ -856,9 +893,17 @@ const handleMarkDelivered = async () => {
                 </Marker>
               )}
 
-              {currentPos && customerPos && (
+              {/* {currentPos && customerPos && (
                 <Polyline positions={[currentPos, [customerPos.lat, customerPos.lng]]} color="blue" dashArray="10,10" opacity={0.6} />
-              )}
+              )} */}
+              {currentPos && customerPos && (
+              <Polyline 
+                positions={[currentPos, [customerPos.lat, customerPos.lng]]} 
+                color={accuracy && accuracy < 30 ? "green" : accuracy < 70 ? "orange" : "red"} 
+                dashArray="5,5" 
+                opacity={0.7} 
+              />
+            )}
             </MapContainer>
           ) : (
             <Box sx={{ height: "100%", display: "flex", alignItems: "center", justifyContent: "center", flexDirection: "column", gap: 1 }}>
