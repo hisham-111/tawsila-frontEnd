@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo, useRef } from "react";
+
 import { motion } from "framer-motion";
 import { useNavigate } from "react-router-dom";
 import { Box, TextField, MenuItem, Button, Paper, Typography, Modal } from "@mui/material";
@@ -300,7 +301,8 @@ export default function CustomerForm() {
                                 setForm(prev => ({ ...prev, customer_address: address }));
 
                                 if (pos.coords.accuracy > 200) alert(`⚠️ GPS accuracy very low (±${Math.round(pos.coords.accuracy)}m). Move outside for better accuracy.`);
-                                else if (pos.coords.accuracy > 50) alert(`⚠️ GPS accuracy low (±${Math.round(pos.coords.accuracy)}m). You can adjust marker manually.`);
+                                else if (pos.coords.accuracy > 50) null;
+                                // else if (pos.coords.accuracy > 50) alert(`⚠️ GPS accuracy low (±${Math.round(pos.coords.accuracy)}m). You can adjust marker manually.`);
                             }, () => alert("GPS permission denied"), { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 });
                         }}
                     >
