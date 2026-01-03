@@ -11,19 +11,19 @@ import api from "./api";
 import Logo from "../assets/Logo.png";
 
 // 🔹 Icons
-const driverIcon = useMemo(() new L.Icon({
-    iconUrl: "https://cdn-icons-png.flaticon.com/512/3097/3097136.png",
-    iconSize: [36, 36],
-    iconAnchor: [18, 18],
-    popupAnchor: [0, -20]
-}), []);
+  const driverIcon = useMemo(() => new L.Icon({
+        iconUrl: "https://cdn-icons-png.flaticon.com/512/3097/3097136.png",
+        iconSize: [36, 36],
+        iconAnchor: [18, 18],
+        popupAnchor: [0, -20]
+    }), []);
 
-const homeIcon = useMemo(() new L.Icon({
-    iconUrl: "https://cdn-icons-png.flaticon.com/512/619/619153.png",
-    iconSize: [36, 36],
-    iconAnchor: [18, 36],
-    popupAnchor: [0, -36]
-}),[]);
+    const homeIcon = useMemo(() => new L.Icon({
+        iconUrl: "https://cdn-icons-png.flaticon.com/512/619/619153.png",
+        iconSize: [36, 36],
+        iconAnchor: [18, 36],
+        popupAnchor: [0, -36]
+    }), []);
 
 const SOCKET_URL = import.meta.env.VITE_BACKEND_URL || "https://tawsila-backend-0shs.onrender.com";
 
