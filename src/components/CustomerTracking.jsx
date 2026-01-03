@@ -158,7 +158,7 @@ export default function CustomerTracking() {
             else setDriverLocation(null);
         });
 
-        socket.on("delivery-complete", () => {
+        socket.on("order-delivered", () => {
             setStatus("Order Status: Delivered! 🎉");
             setDriverLocation(null);
             setIsDeliveryComplete(true);
