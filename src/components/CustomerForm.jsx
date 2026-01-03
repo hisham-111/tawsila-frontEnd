@@ -218,13 +218,25 @@ export default function CustomerForm() {
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [notification, setNotification] = useState({
     open: false,
-    severity: "info", // "error", "warning", "success", "info"
+    severity: "info", 
     message: ""
 });
 
     const showNotification = (message, severity = "info") => {
-        setNotification({ open: true, message, severity });
-    };
+    setNotification(prev => ({
+        ...prev,
+        open: false
+    }));
+
+    setTimeout(() => {
+        setNotification({
+            open: true,
+            message,
+            severity
+        });
+    }, 150);
+};
+
 
     const itemOptions = ["Electronics", "Clothes", "Food Delivery", "Documents", "Furniture", "Other"];
     const handleChange = (e) => setForm({ ...form, [e.target.name]: e.target.value });
@@ -256,6 +268,8 @@ export default function CustomerForm() {
             });
             setOrderNumber(res.data.order.order_number);
             setOpen(true);
+            showNotification("✅ Order submitted successfully!", "success");
+
         } catch (err) {
             alert("Failed to submit order");
             console.error(err);
@@ -320,11 +334,20 @@ export default function CustomerForm() {
 
                                  // Check GPS accuracy
                                     if (pos.coords.accuracy > 200) {
-                                        showNotification(`⚠️ GPS accuracy very low (±${Math.round(pos.coords.accuracy)}m). Move outside for better accuracy.`, "warning");
-                                    } else if (pos.coords.accuracy > 50) {
-                                        showNotification(`⚠️ GPS accuracy low (±${Math.round(pos.coords.accuracy)}m). You can adjust marker manually.`, "info");
-                                    }
-                            }, () => showNotification("GPS permission denied"), { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 });
+                                    showNotification(
+                                        `⚠️ Very low GPS accuracy (±${Math.round(pos.coords.accuracy)}m). Move outside.`,
+                                        "warning"
+                                    );
+                                   } else if (pos.coords.accuracy > 50) {
+                                    showNotification(
+                                        `ℹ️ GPS accuracy is moderate (±${Math.round(pos.coords.accuracy)}m). You may adjust the marker.`,
+                                        "info"
+                                    );
+                                }
+                                else {
+                                            showNotification("📍 Location detected accurately", "success");
+                                        }
+                                  }, () => showNotification("GPS permission denied"), { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 });
                         }}
                     >
                         📍 Use My Current Location
@@ -346,6 +369,23 @@ export default function CustomerForm() {
             </Modal>
         </motion.div>
         }
+
+        <Snackbar
+            open={notification.open}
+            autoHideDuration={5000}
+            onClose={() => setNotification(prev => ({ ...prev, open: false }))}
+            anchorOrigin={{ vertical: "top", horizontal: "center" }}
+        >
+            <Alert
+                severity={notification.severity}
+                onClose={() => setNotification(prev => ({ ...prev, open: false }))}
+                sx={{ width: "100%" }}
+                variant="filled"
+            >
+                {notification.message}
+            </Alert>
+        </Snackbar>
+
         </>
     );
 }
