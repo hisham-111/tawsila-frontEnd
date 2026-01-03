@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef,useMemo } from "react";
 import { motion } from "framer-motion";
 import { Box, Paper, Typography, LinearProgress, Modal, Button } from "@mui/material";
 import CheckCircleIcon from "@mui/icons-material/CheckCircle";
@@ -10,20 +10,6 @@ import L from "leaflet";
 import api from "./api";
 import Logo from "../assets/Logo.png";
 
-// 🔹 Icons
-  const driverIcon = useMemo(() => new L.Icon({
-        iconUrl: "https://cdn-icons-png.flaticon.com/512/3097/3097136.png",
-        iconSize: [36, 36],
-        iconAnchor: [18, 18],
-        popupAnchor: [0, -20]
-    }), []);
-
-    const homeIcon = useMemo(() => new L.Icon({
-        iconUrl: "https://cdn-icons-png.flaticon.com/512/619/619153.png",
-        iconSize: [36, 36],
-        iconAnchor: [18, 36],
-        popupAnchor: [0, -36]
-    }), []);
 
 const SOCKET_URL = import.meta.env.VITE_BACKEND_URL || "https://tawsila-backend-0shs.onrender.com";
 
@@ -63,6 +49,20 @@ const fetchDetailedAddress = async (lat, lng) => {
 
 // 🔹 Main Component
 export default function CustomerTracking() {
+
+      const driverIcon = useMemo(() => new L.Icon({
+        iconUrl: "https://cdn-icons-png.flaticon.com/512/3097/3097136.png",
+        iconSize: [36, 36],
+        iconAnchor: [18, 18],
+        popupAnchor: [0, -20]
+    }), []);
+
+    const homeIcon = useMemo(() => new L.Icon({
+        iconUrl: "https://cdn-icons-png.flaticon.com/512/619/619153.png",
+        iconSize: [36, 36],
+        iconAnchor: [18, 36],
+        popupAnchor: [0, -36]
+    }), []);
     const location = useLocation();
     const navigate = useNavigate();
     const [orderId, setOrderId] = useState(location.state?.orderNumber || "");
