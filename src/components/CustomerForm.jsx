@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useRef } from "react";
-
+import { KalmanFilter } from "./KalmanFilter";
 import { motion } from "framer-motion";
 import { useNavigate } from "react-router-dom";
 import { Box, TextField, MenuItem, Button, Paper, Typography, Modal } from "@mui/material";
@@ -41,6 +41,8 @@ async function getAddress(lat, lng) {
         return "Unknown location";
     }
 }
+
+
 
 
 
@@ -216,6 +218,9 @@ export default function CustomerForm() {
     const itemOptions = ["Electronics", "Clothes", "Food Delivery", "Documents", "Furniture", "Other"];
     const handleChange = (e) => setForm({ ...form, [e.target.name]: e.target.value });
 
+    const latFilter = new KalmanFilter(0.0001, 0.01);
+    const lngFilter = new KalmanFilter(0.0001, 0.01);
+
     // --- Submit Order ---
     const handleSubmit = async (e) => {
         e.preventDefault();
@@ -295,12 +300,15 @@ export default function CustomerForm() {
                         onClick={async () => {
                             if (!navigator.geolocation) return alert("Geolocation not supported");
                             navigator.geolocation.getCurrentPosition(async (pos) => {
-                                const coords = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+                                const filteredLat = latFilter.filter(pos.coords.latitude);
+                                const filteredLng = lngFilter.filter(pos.coords.longitude);
+                                const coords = { lat: filteredLat, lng: filteredLng };
                                 setPosition(coords);
                                 const address = await getAddress(coords.lat, coords.lng);
                                 setForm(prev => ({ ...prev, customer_address: address }));
 
-                                if (pos.coords.accuracy > 200) alert(`⚠️ GPS accuracy very low (±${Math.round(pos.coords.accuracy)}m). Move outside for better accuracy.`);
+                                // if (pos.coords.accuracy > 200) alert(`⚠️ GPS accuracy very low (±${Math.round(pos.coords.accuracy)}m). Move outside for better accuracy.`);
+                                if (pos.coords.accuracy > 200) null;
                                 else if (pos.coords.accuracy > 50) null;
                                 // else if (pos.coords.accuracy > 50) alert(`⚠️ GPS accuracy low (±${Math.round(pos.coords.accuracy)}m). You can adjust marker manually.`);
                             }, () => alert("GPS permission denied"), { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 });
