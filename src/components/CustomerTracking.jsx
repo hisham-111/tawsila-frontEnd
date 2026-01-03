@@ -28,6 +28,27 @@ function MapController({ driverLoc, customerLoc }) {
     return null;
 }
 
+
+const hasSignificantMovement = (prev, next, threshold = 30) => {
+    if (!prev || !next) return true;
+
+    const R = 6371000; // earth radius meters
+    const dLat = (next.lat - prev.lat) * Math.PI / 180;
+    const dLng = (next.lng - prev.lng) * Math.PI / 180;
+
+    const a =
+        Math.sin(dLat / 2) ** 2 +
+        Math.cos(prev.lat * Math.PI / 180) *
+        Math.cos(next.lat * Math.PI / 180) *
+        Math.sin(dLng / 2) ** 2;
+
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    const distance = R * c;
+
+    return distance > threshold; // مثلاً 30 متر
+};
+
+
 // 🔹 Reverse Geocoding
 const fetchDetailedAddress = async (lat, lng) => {
     try {
@@ -75,6 +96,20 @@ export default function CustomerTracking() {
     const [isDeliveryComplete, setIsDeliveryComplete] = useState(false);
     const [isCancelled, setIsCancelled] = useState(false);
     const [customerAddress, setCustomerAddress] = useState(null);
+    const etaHistory = useRef([]);
+
+
+    const smoothETA = (newEta) => {
+    etaHistory.current.push(newEta);
+    if (etaHistory.current.length > 5) etaHistory.current.shift();
+
+    const avg =
+        etaHistory.current.reduce((a, b) => a + b, 0) /
+        etaHistory.current.length;
+
+    return avg;
+};
+
 
 
 
@@ -142,6 +177,17 @@ export default function CustomerTracking() {
     //     }
     // }, [driverLocation, customerLocation]);
 
+    const formatETA = (seconds) => {
+    if (!seconds) return "N/A";
+    const mins = Math.round(seconds / 60);
+    if (mins < 1) return "Less than 1 min";
+    if (mins < 60) return `${mins} min`;
+    const hours = Math.floor(mins / 60);
+    const rem = mins % 60;
+    return `${hours}h ${rem}m`;
+};
+
+
     const calculateRouteInfo = async (origin, destination) => {
     try {
         const { data } = await api.post("/orders/route-info", {
@@ -149,7 +195,12 @@ export default function CustomerTracking() {
             destination,
         });
         setDistance(`${(data.distance / 1000).toFixed(2)} km`);
-        setEta(`${Math.round(data.duration / 60)} min`);
+        // setEta(`${Math.round(data.duration / 60)} min`);
+        setEta(formatETA(data.duration));
+
+        const smoothed = smoothETA(data.duration);
+            setEta(formatETA(smoothed));
+
     } catch {
         setDistance("N/A");
         setEta("Error");
@@ -179,10 +230,19 @@ export default function CustomerTracking() {
         socketRef.current = socket;
         socket.on("connect", () => socket.emit("join-order", orderId));
 
+        // socket.on("location-updated", (data) => {
+        //     if (data && typeof data.lat === "number" && typeof data.lng === "number") setDriverLocation(data);
+        //     else setDriverLocation(null);
+        // });
+
         socket.on("location-updated", (data) => {
-            if (data && typeof data.lat === "number" && typeof data.lng === "number") setDriverLocation(data);
-            else setDriverLocation(null);
+        setDriverLocation(prev => {
+            if (!prev) return data;
+            if (!hasSignificantMovement(prev, data)) return prev;
+            return data;
         });
+    });
+
 
         socket.on("order-delivered", () => {
             setStatus("Order Status: Delivered! 🎉");
