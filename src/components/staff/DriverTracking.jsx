@@ -476,6 +476,8 @@ function MapCentering({ driverPos, customerPos }) {
 }
 
 
+
+
 // ===================== ETA CALCULATION =====================
 const calculateETA = (driverPos, customerPos, avgSpeedKmh = 30) => {
   if (!driverPos || !customerPos) return null;
@@ -491,6 +493,33 @@ const calculateETA = (driverPos, customerPos, avgSpeedKmh = 30) => {
   const etaMinutes = (distanceKm / avgSpeedKmh) * 60;
   return Math.round(etaMinutes);
 };
+
+
+class KalmanFilter {
+  constructor(r = 0.00001, q = 0.001) {
+    this.R = r;
+    this.Q = q;
+    this.A = 1;
+    this.C = 1;
+    this.cov = NaN;
+    this.x = NaN;
+  }
+
+  filter(z) {
+    if (isNaN(this.x)) {
+      this.x = z;
+      this.cov = 1;
+    } else {
+      const predX = this.x;
+      const predCov = this.cov + this.Q;
+      const K = predCov / (predCov + this.R);
+      this.x = predX + K * (z - predX);
+      this.cov = predCov - K * predCov;
+    }
+    return this.x;
+  }
+}
+
 
 
 // ===================== SOCKET & USER =====================
@@ -532,6 +561,14 @@ export default function DriverTracking({ initialOrderNumber, driverId }) {
   const watchIdRef = useRef(null);
   const socketRef = useRef(null);
 
+  const lastPosRef = useRef(null);
+  const lastTimeRef = useRef(null);
+
+
+  const latFilter = useRef(new KalmanFilter());
+  const lngFilter = useRef(new KalmanFilter());
+
+
   // ===================== HELPER: REVERSE GEOCODING =====================
   const fetchDetailedAddress = async (lat, lng) => {
     try {
@@ -565,6 +602,17 @@ export default function DriverTracking({ initialOrderNumber, driverId }) {
       console.error("Error fetching customer location:", err);
     }
   }, []);
+
+
+  useEffect(() => {
+  if (!currentPos) {
+    setCurrentPos({
+      lat: 34.4386,
+      lng: 35.8495
+    });
+  }
+}, []);
+
 
   // ===================== SOCKET.IO SETUP =====================
   useEffect(() => {
@@ -705,21 +753,82 @@ const startTracking = () => {
   setIsTracking(true);
   setStatusMsg("📡 Searching for GPS...");
 
-  const sendLocation = (lat, lng, accuracy = 20) => {
-    setCurrentPos({ lat, lng });
-    setAccuracy(accuracy);
+  // const sendLocation = (lat, lng, accuracy = 20) => {
+  //   setCurrentPos({ lat, lng });
+  //   setAccuracy(accuracy);
 
-    if (socketRef.current?.connected) {
-      socketRef.current.emit("update-location", {
-        orderId: currentOrderId,
-        driverId,
-        lat,
-        lng,
-        accuracy,
-        timestamp: Date.now(),
-      });
-    }
+  //   if (socketRef.current?.connected) {
+  //     socketRef.current.emit("update-location", {
+  //       orderId: currentOrderId,
+  //       driverId,
+  //       lat,
+  //       lng,
+  //       accuracy,
+  //       timestamp: Date.now(),
+  //     });
+  //   }
+  // };
+
+
+  const sendLocation = (lat, lng, accuracy = 20) => {
+  const smoothLat = latFilter.current.filter(lat);
+  const smoothLng = lngFilter.current.filter(lng);
+
+  const filteredPos = { lat: smoothLat, lng: smoothLng };
+  const now = Date.now();
+
+  // ⏱️ حساب الزمن
+  const deltaTimeSec = lastTimeRef.current
+    ? (now - lastTimeRef.current) / 1000
+    : 0;
+
+  const MAX_SPEED_KMH = 120;
+
+  const isValidMovement = (prev, next, deltaTimeSec) => {
+    if (!prev || deltaTimeSec === 0) return true;
+
+    const R = 6371;
+    const dLat = (next.lat - prev.lat) * Math.PI / 180;
+    const dLng = (next.lng - prev.lng) * Math.PI / 180;
+    const a =
+      Math.sin(dLat / 2) ** 2 +
+      Math.cos(prev.lat * Math.PI / 180) *
+      Math.cos(next.lat * Math.PI / 180) *
+      Math.sin(dLng / 2) ** 2;
+
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    const distanceKm = R * c;
+    const speed = (distanceKm / deltaTimeSec) * 3600;
+
+    return speed <= MAX_SPEED_KMH;
   };
+
+  // ❌ تجاهل القفزات غير المنطقية
+  if (!isValidMovement(lastPosRef.current, filteredPos, deltaTimeSec)) {
+    console.warn("🚫 Ignored unrealistic GPS jump");
+    return;
+  }
+
+  // ✅ حفظ آخر موقع
+  lastPosRef.current = filteredPos;
+  lastTimeRef.current = now;
+
+  setCurrentPos(filteredPos);
+  setAccuracy(accuracy);
+
+  if (socketRef.current?.connected) {
+    socketRef.current.emit("update-location", {
+      orderId: currentOrderId,
+      driverId,
+      lat: smoothLat,
+      lng: smoothLng,
+      accuracy,
+      timestamp: now,
+    });
+  }
+};
+
+
 
   // ======================
   // 📱 Mobile with GPS
@@ -908,7 +1017,10 @@ const handleMarkDelivered = async () => {
           ) : (
             <Box sx={{ height: "100%", display: "flex", alignItems: "center", justifyContent: "center", flexDirection: "column", gap: 1 }}>
               <CircularProgress size={24} />
-              <Typography color="textSecondary" fontSize={0.85}>Waiting for GPS…</Typography>
+              {/* <Typography color="textSecondary" fontSize={0.85}>Waiting for GPS…</Typography> */}
+              <Typography color="textSecondary" fontSize={0.85}>
+                Map ready. Start tracking to share live location.
+              </Typography>
             </Box>
           )}
         </Box>

@@ -300,7 +300,7 @@ export default function CustomerTracking() {
                         width: { xs: "85%", sm: 400 }, p: 4, textAlign: "center", borderRadius: 3,
                         boxShadow: 24, outline: 'none', }}>
                         <Typography variant="h5" fontWeight={700} mb={2}>Order Cancelled ❌</Typography>
-                        <Typography variant="body1" color="text.secondary" mb={3}>Your order **#{orderId}** has been cancelled by the restaurant or driver.</Typography>
+                        <Typography variant="body1" color="text.secondary" mb={3}>Your order **#{orderId}** has been cancelled by the driver.</Typography>
                         <Button variant="outlined" color="inherit" fullWidth onClick={() => { setIsCancelled(false); navigate("/"); }}>Close</Button>
                     </Paper>
                 </Modal>
