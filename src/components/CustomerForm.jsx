@@ -43,22 +43,79 @@ async function getAddress(lat, lng) {
 
 
 
-// --- Map click handler مع جلب العنوان التفصيلي ---
-function MapClickHandler({ setPosition, setForm }) {
-    const map = useMap();
+// --- Helper: Snap to nearest road/building using OSM Overpass API ---
+async function snapToNearestRoad(lat, lng, radius = 50) {
+  try {
+    // Overpass API query to get nearest highway/road within radius meters
+    const query = `
+      [out:json];
+      (
+        way(around:${radius},${lat},${lng})["highway"];
+      );
+      out center 1;
+    `;
+    const url = "https://overpass-api.de/api/interpreter?data=" + encodeURIComponent(query);
+    const res = await fetch(url);
+    const data = await res.json();
+    if (!data.elements || data.elements.length === 0) return { lat, lng }; // no road found
 
-    useMapEvents({
-        click: async (e) => {
-            const coords = e.latlng.wrap();
-            setPosition(coords);
-            const address = await getAddress(coords.lat, coords.lng);
-            setForm(prev => ({ ...prev, customer_address: address }));
-            map.flyTo(coords, 17);
-        }
-    });
+    // find closest element
+    const closest = data.elements.reduce((prev, curr) => {
+      const dPrev = Math.hypot(prev.lat - lat, prev.lon - lng);
+      const dCurr = Math.hypot(curr.center.lat - lat, curr.center.lon - lng);
+      return dCurr < dPrev ? { lat: curr.center.lat, lng: curr.center.lon } : prev;
+    }, { lat, lng });
 
-    return null;
+    return closest;
+  } catch (err) {
+    console.error("Snap-to-road error:", err);
+    return { lat, lng };
+  }
 }
+
+
+
+
+// --- Map click handler مع جلب العنوان التفصيلي ---
+// function MapClickHandler({ setPosition, setForm }) {
+//     const map = useMap();
+
+//     useMapEvents({
+//         click: async (e) => {
+//             const coords = e.latlng.wrap();
+//             setPosition(coords);
+//             const address = await getAddress(coords.lat, coords.lng);
+//             setForm(prev => ({ ...prev, customer_address: address }));
+//             map.flyTo(coords, 17);
+//         }
+//     });
+
+//     return null;
+// }
+
+function MapClickHandler({ setPosition, setForm }) {
+  const map = useMap();
+
+  useMapEvents({
+    click: async (e) => {
+      const coords = e.latlng.wrap();
+
+      // --- Snap to road ---
+      const snapped = await snapToNearestRoad(coords.lat, coords.lng);
+
+      setPosition(snapped);
+
+      // --- تحديث العنوان التفصيلي ---
+      const address = await getAddress(snapped.lat, snapped.lng);
+      setForm(prev => ({ ...prev, customer_address: address }));
+
+      map.flyTo(snapped, 17);
+    }
+  });
+
+  return null;
+}
+
 
 // --- Search Control ---
 function SearchControl({ setPosition, setForm }) {
@@ -98,16 +155,32 @@ function SearchControl({ setPosition, setForm }) {
 function LocationSelector({ position, setPosition, setForm }) {
     const markerRef = useRef(null);
 
+    // const eventHandlers = useMemo(() => ({
+    //     dragend: async () => {
+    //         const marker = markerRef.current;
+    //         if (!marker) return;
+    //         const coords = marker.getLatLng();
+    //         setPosition(coords);
+    //         const address = await getAddress(coords.lat, coords.lng);
+    //         setForm(prev => ({ ...prev, customer_address: address }));
+    //     }
+    // }), [setPosition, setForm]);
+
     const eventHandlers = useMemo(() => ({
-        dragend: async () => {
-            const marker = markerRef.current;
-            if (!marker) return;
-            const coords = marker.getLatLng();
-            setPosition(coords);
-            const address = await getAddress(coords.lat, coords.lng);
-            setForm(prev => ({ ...prev, customer_address: address }));
-        }
-    }), [setPosition, setForm]);
+  dragend: async () => {
+    const marker = markerRef.current;
+    if (!marker) return;
+    const coords = marker.getLatLng();
+
+    // Snap to road عند سحب العلامة
+    const snapped = await snapToNearestRoad(coords.lat, coords.lng);
+    setPosition(snapped);
+
+    const address = await getAddress(snapped.lat, snapped.lng);
+    setForm(prev => ({ ...prev, customer_address: address }));
+  }
+}), [setPosition, setForm]);
+
 
     if (!position) return null;
 
