@@ -11,19 +11,19 @@ import api from "./api";
 import Logo from "../assets/Logo.png";
 
 // 🔹 Icons
-const driverIcon = new L.Icon({
+const driverIcon = useMemo(() new L.Icon({
     iconUrl: "https://cdn-icons-png.flaticon.com/512/3097/3097136.png",
     iconSize: [36, 36],
     iconAnchor: [18, 18],
     popupAnchor: [0, -20]
-});
+}), []);
 
-const homeIcon = new L.Icon({
+const homeIcon = useMemo(() new L.Icon({
     iconUrl: "https://cdn-icons-png.flaticon.com/512/619/619153.png",
     iconSize: [36, 36],
     iconAnchor: [18, 36],
     popupAnchor: [0, -36]
-});
+}),[]);
 
 const SOCKET_URL = import.meta.env.VITE_BACKEND_URL || "https://tawsila-backend-0shs.onrender.com";
 
@@ -74,6 +74,8 @@ export default function CustomerTracking() {
     const socketRef = useRef(null);
     const [isDeliveryComplete, setIsDeliveryComplete] = useState(false);
     const [isCancelled, setIsCancelled] = useState(false);
+    const [customerAddress, setCustomerAddress] = useState(null);
+
 
 
 
@@ -106,39 +108,63 @@ export default function CustomerTracking() {
 
 
     // 🔹 Route info
+    // useEffect(() => {
+    //     if (driverLocation && customerLocation) {
+    //         const calculateRouteInfo = async () => {
+    //             setEta("Calculating...");
+    //             setDistance("Calculating...");
+    //             try {
+    //                 const response = await api.post('/orders/route-info', {
+    //                     origin: driverLocation,
+    //                     destination: customerLocation,
+    //                 });
+    //                 const routeData = response.data;
+    //                   console.log("ROUTE INFO RESPONSE:", response.data);
+
+
+    //                 // setDistance(routeData?.distance || "N/A");
+    //                setDistance(`${(routeData.distance / 1000).toFixed(2)} km`);
+    //                setEta(`${Math.round(routeData.duration / 60)} min`);
+
+
+
+
+    //             } catch (err) {
+    //                 console.error(err);
+    //                 setDistance("N/A");
+    //                 setEta("Error");
+    //             }
+    //         };
+    //         calculateRouteInfo();
+    //     } else {
+    //         setDistance(null);
+    //         setEta(null);
+    //     }
+    // }, [driverLocation, customerLocation]);
+
+    const calculateRouteInfo = async (origin, destination) => {
+    try {
+        const { data } = await api.post("/orders/route-info", {
+            origin,
+            destination,
+        });
+        setDistance(`${(data.distance / 1000).toFixed(2)} km`);
+        setEta(`${Math.round(data.duration / 60)} min`);
+    } catch {
+        setDistance("N/A");
+        setEta("Error");
+    }
+};
+
+
     useEffect(() => {
         if (driverLocation && customerLocation) {
-            const calculateRouteInfo = async () => {
-                setEta("Calculating...");
-                setDistance("Calculating...");
-                try {
-                    const response = await api.post('/orders/route-info', {
-                        origin: driverLocation,
-                        destination: customerLocation,
-                    });
-                    const routeData = response.data;
-                      console.log("ROUTE INFO RESPONSE:", response.data);
-
-
-                    // setDistance(routeData?.distance || "N/A");
-                   setDistance(`${(routeData.distance / 1000).toFixed(2)} km`);
-                   setEta(`${Math.round(routeData.duration / 60)} min`);
-
-
-
-
-                } catch (err) {
-                    console.error(err);
-                    setDistance("N/A");
-                    setEta("Error");
-                }
-            };
-            calculateRouteInfo();
-        } else {
-            setDistance(null);
-            setEta(null);
+            setEta("Calculating...");
+            setDistance("Calculating...");
+            calculateRouteInfo(driverLocation, customerLocation);
         }
     }, [driverLocation, customerLocation]);
+
 
     // 🔹 WebSocket
     useEffect(() => {
@@ -169,6 +195,15 @@ export default function CustomerTracking() {
             setDriverLocation(null);
             setIsCancelled(true);
         });
+
+        socket.on("disconnect", () => {
+        setStatus("Reconnecting to server...");
+             });
+
+    socket.on("reconnect", () => {
+        setStatus("Connected ✅");
+            });
+
 
         return () => socket.disconnect();
     }, [orderId]);
@@ -221,12 +256,20 @@ export default function CustomerTracking() {
     }, [driverLocation, customerLocation]);
 
     // 🔹 Fetch addresses for markers
+    // useEffect(() => {
+    //     if (customerLocation) {
+    //         fetchDetailedAddress(customerLocation.lat, customerLocation.lng)
+    //             .then(addr => setCustomerLocation(prev => ({ ...prev, address: addr })));
+    //     }
+    // }, [customerLocation?.lat, customerLocation?.lng]);
+
     useEffect(() => {
-        if (customerLocation) {
-            fetchDetailedAddress(customerLocation.lat, customerLocation.lng)
-                .then(addr => setCustomerLocation(prev => ({ ...prev, address: addr })));
-        }
-    }, [customerLocation?.lat, customerLocation?.lng]);
+    if (customerLocation?.lat && customerLocation?.lng) {
+        fetchDetailedAddress(customerLocation.lat, customerLocation.lng)
+            .then(setCustomerAddress);
+    }
+}, [customerLocation?.lat, customerLocation?.lng]);
+
 
     useEffect(() => {
         if (driverLocation) {
