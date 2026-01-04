@@ -320,7 +320,7 @@ export default function CustomerForm() {
         }
 
         try {
-            const requestId = crypto.randomUUID();
+            
             const res = await api.post("/public/order/submit", {
                 customer: {
                     name: form.customer_name,
@@ -329,33 +329,18 @@ export default function CustomerForm() {
                     coords: position,
                 },
                 type_of_item: form.type_of_item,
-                requestId //  send requestId to backend
-
             });
-            const newOrderNumber = res.data.order.order_number;
-            setOrderNumber(newOrderNumber);
+            setOrderNumber(res.data.order.order_number);
             setOpen(true);
             showNotification("✅ Order submitted successfully!", "success");
 
         } catch (err) {
-    if (err.response?.status === 409) {
-        const existingOrderNumber = err.response.data.order_number;
-        setOrderNumber(existingOrderNumber);
-        setOpen(true);
-        showNotification("⚠️ This order was already submitted", "warning");
-    } else if (err.response?.status === 400) {
-        const existingOrderNumber = err.response.data.order_number;
-        setOrderNumber(existingOrderNumber);
-        setOpen(true);
-        showNotification("⚠️ You already have an active order", "warning");
-    } else {
-        showNotification("Failed to submit order");
-        console.error(err);
-    }
-}finally {
-        setIsSubmitting(false);
-    }
-};
+            alert("Failed to submit order");
+            console.error(err);
+        } finally {
+            setIsSubmitting(false);
+        }
+    };
 
     useEffect(() => {
         const timer = setTimeout(() => setShowWelcome(false), 3000);
