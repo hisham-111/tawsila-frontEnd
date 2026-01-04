@@ -21,20 +21,7 @@ const isValidLatLng = (loc) =>
   !Number.isNaN(loc.lng);
 
 // 🔹 MapController
-// function MapController({ driverLoc, customerLoc }) {
-//     const map = useMap();
-//     useEffect(() => {
-//         const points = [];
 
-//         if (driverLoc) points.push([driverLoc.lat, driverLoc.lng]);
-//         if (customerLoc) points.push([customerLoc.lat, customerLoc.lng]);
-
-//         if (points.length === 2) map.fitBounds(points, { padding: [40, 40], animate: true });
-//         else if (customerLoc) map.setView([customerLoc.lat, customerLoc.lng], 14, { animate: true });
-//     }, [driverLoc, customerLoc, map]);
-
-//     return null;
-// }
 
 function MapController({ driverLoc, customerLoc }) {
   const map = useMap();
