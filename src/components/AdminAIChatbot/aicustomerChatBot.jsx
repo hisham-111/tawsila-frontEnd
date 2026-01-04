@@ -29,7 +29,7 @@ const GEMINI_MODEL = "gemini-2.5-flash-preview-09-2025";
  * This is how you "Train" the bot without actual coding.
  */
 const COMPANY_KNOWLEDGE = `
-- Business Name: SwiftShip Logistics.
+- Business Name: Tawsila Logistics.
 - Services: Same-day delivery, International shipping, and Furniture moving.
 - Delivery Time: Local deliveries take 2-4 hours. Inter-city takes 24 hours.
 - Tracking: Users can track orders using their Order Number in the "Track Order" page.
@@ -43,7 +43,7 @@ export default function CustomerAIChat({ currentOrder = null }) {
   const [messages, setMessages] = useState([
     { 
       role: "assistant", 
-      text: "Hello! I'm your SwiftShip assistant. I can help you fill out your delivery request or track an existing order. How can I assist you today?" 
+      text: "Hello! I'm your Tawsila shatBot assistant. I can help you fill out your delivery request or track an existing order. How can I assist you today?" 
     }
   ]);
   const [input, setInput] = useState("");
@@ -152,7 +152,7 @@ export default function CustomerAIChat({ currentOrder = null }) {
         <Box sx={{ p: 2, bgcolor: "#2CA9E3", color: "white", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
           <Stack direction="row" spacing={1} alignItems="center">
             <LocalShipping />
-            <Typography variant="subtitle1" fontWeight="bold">SwiftShip Support</Typography>
+            <Typography variant="subtitle1" fontWeight="bold">TawsilaChatBot Support</Typography>
           </Stack>
           <IconButton onClick={() => setIsOpen(false)} color="inherit"><Close /></IconButton>
         </Box>
