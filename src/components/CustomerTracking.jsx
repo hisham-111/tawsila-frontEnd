@@ -330,41 +330,7 @@ export default function CustomerTracking() {
         return () => clearInterval(interval);
     }, [orderId, isDeliveryComplete, isCancelled]);
 
-    // 🔹 Route info
-    // useEffect(() => {
-    //     if (driverLocation && customerLocation) {
-    //         const calculateRouteInfo = async () => {
-    //             setEta("Calculating...");
-    //             setDistance("Calculating...");
-    //             try {
-    //                 const response = await api.post('/orders/route-info', {
-    //                     origin: driverLocation,
-    //                     destination: customerLocation,
-    //                 });
-    //                 const routeData = response.data;
-    //                 setDistance(`${(routeData.distance / 1000).toFixed(2)} km`);
-    //                 setEta(`${Math.round(routeData.duration / 60)} min`);
-    //             } catch (err) {
-    //                 console.error(err);
-    //                 setDistance("N/A");
-    //                 setEta("Error");
-    //             }
-    //         };
-    //         calculateRouteInfo();
-    //     } else {
-    //         setDistance(null);
-    //         setEta(null);
-    //     }
-    // }, [driverLocation, customerLocation]);
-
-    // 🔹 Fetch addresses for markers
-    // useEffect(() => {
-    //     if (customerLocation) {
-    //         fetchDetailedAddress(customerLocation.lat, customerLocation.lng)
-    //             .then(addr => setCustomerLocation(prev => ({ ...prev, address: addr })));
-    //     }
-    // }, [customerLocation?.lat, customerLocation?.lng]);
-
+ 
     useEffect(() => {
     if (customerLocation?.lat && customerLocation?.lng) {
         fetchDetailedAddress(customerLocation.lat, customerLocation.lng)
