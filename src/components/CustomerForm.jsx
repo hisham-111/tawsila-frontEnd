@@ -332,26 +332,30 @@ export default function CustomerForm() {
                 requestId //  send requestId to backend
 
             });
-            setOrderNumber(res.data.order.order_number);
+            const newOrderNumber = res.data.order.order_number;
+            setOrderNumber(newOrderNumber);
             setOpen(true);
             showNotification("✅ Order submitted successfully!", "success");
 
         } catch (err) {
-        if (err.response && err.response.status === 409) {
-            showNotification("⚠️ This order was already submitted", "warning");
-            setOrderNumber(err.response.data.order_number);
-            setOpen(true);
-        } else if (err.response && err.response.status === 400) {
-            showNotification("⚠️ You already have an active order", "warning");
-            setOrderNumber(err.response.data.order_number);
-            setOpen(true);
-        } else {
-            showNotification("Failed to submit order");
-            console.error(err);
+            if (err.response?.status === 409) {
+                const existingOrderNumber = err.response.data.order_number;
+                setOrderNumber(existingOrderNumber);
+                setOpen(true);
+                showNotification("⚠️ This order was already submitted", "warning");
+            } else if (err.response?.status === 400) {
+                const existingOrderNumber = err.response.data.order_number;
+                setOrderNumber(existingOrderNumber);
+                setOpen(true);
+                showNotification("⚠️ You already have an active order", "warning");
+            } else {
+                showNotification("Failed to submit order");
+                console.error(err);
+            }
         }
-    } finally {
-        setIsSubmitting(false);
-    }
+        finally {
+                setIsSubmitting(false);
+            }
 };
 
     useEffect(() => {
