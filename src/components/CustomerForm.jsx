@@ -83,22 +83,6 @@ async function snapToNearestRoad(lat, lng, radius = 50) {
 
 
 
-// --- Map click handler مع جلب العنوان التفصيلي ---
-// function MapClickHandler({ setPosition, setForm }) {
-//     const map = useMap();
-
-//     useMapEvents({
-//         click: async (e) => {
-//             const coords = e.latlng.wrap();
-//             setPosition(coords);
-//             const address = await getAddress(coords.lat, coords.lng);
-//             setForm(prev => ({ ...prev, customer_address: address }));
-//             map.flyTo(coords, 17);
-//         }
-//     });
-
-//     return null;
-// }
 
 function MapClickHandler({ setPosition, setForm }) {
   const map = useMap();
@@ -112,7 +96,6 @@ function MapClickHandler({ setPosition, setForm }) {
 
       setPosition(snapped);
 
-      // --- تحديث العنوان التفصيلي ---
       const address = await getAddress(snapped.lat, snapped.lng);
       setForm(prev => ({ ...prev, customer_address: address }));
 
@@ -161,18 +144,6 @@ function SearchControl({ setPosition, setForm }) {
 // --- Marker مع سحب لتحديث العنوان ---
 function LocationSelector({ position, setPosition, setForm }) {
     const markerRef = useRef(null);
-
-    // const eventHandlers = useMemo(() => ({
-    //     dragend: async () => {
-    //         const marker = markerRef.current;
-    //         if (!marker) return;
-    //         const coords = marker.getLatLng();
-    //         setPosition(coords);
-    //         const address = await getAddress(coords.lat, coords.lng);
-    //         setForm(prev => ({ ...prev, customer_address: address }));
-    //     }
-    // }), [setPosition, setForm]);
-
     const eventHandlers = useMemo(() => ({
   dragend: async () => {
     const marker = markerRef.current;
@@ -207,7 +178,6 @@ function FlyToPosition({ position }) {
     return null;
 }
 
-// --- المكون الرئيسي ---
 export default function CustomerForm() {
     const navigate = useNavigate();
     const [form, setForm] = useState({
@@ -284,10 +254,6 @@ export default function CustomerForm() {
         const timer = setTimeout(() => setShowWelcome(false), 3000);
         return () => clearTimeout(timer);
     }, []);
-
-
-
-    
 
     return (
         <>
