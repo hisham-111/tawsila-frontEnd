@@ -908,7 +908,7 @@ const handleMarkDelivered = async () => {
   // إرسال الموقع الأخير و إشعار التسليم
   if (socketRef.current?.connected && currentPos) {
     socketRef.current.emit("update-location", { orderId: currentOrderId, driverId, lat: currentPos.lat, lng: currentPos.lng });
-    socketRef.current.emit("order-delivered", { orderId: currentOrderId, driverId });
+    socketRef.current.emit("delivery-complete", { orderId: currentOrderId, driverId });
   }
 
   // إزالة من localStorage و إعادة تعيين state

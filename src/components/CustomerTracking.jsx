@@ -173,41 +173,6 @@ export default function CustomerTracking() {
     }, [orderId]);
 
 
-    // 🔹 Route info
-    // useEffect(() => {
-    //     if (driverLocation && customerLocation) {
-    //         const calculateRouteInfo = async () => {
-    //             setEta("Calculating...");
-    //             setDistance("Calculating...");
-    //             try {
-    //                 const response = await api.post('/orders/route-info', {
-    //                     origin: driverLocation,
-    //                     destination: customerLocation,
-    //                 });
-    //                 const routeData = response.data;
-    //                   console.log("ROUTE INFO RESPONSE:", response.data);
-
-
-    //                 // setDistance(routeData?.distance || "N/A");
-    //                setDistance(`${(routeData.distance / 1000).toFixed(2)} km`);
-    //                setEta(`${Math.round(routeData.duration / 60)} min`);
-
-
-
-
-    //             } catch (err) {
-    //                 console.error(err);
-    //                 setDistance("N/A");
-    //                 setEta("Error");
-    //             }
-    //         };
-    //         calculateRouteInfo();
-    //     } else {
-    //         setDistance(null);
-    //         setEta(null);
-    //     }
-    // }, [driverLocation, customerLocation]);
-
     const formatETA = (seconds) => {
     if (!seconds) return "N/A";
     const mins = Math.round(seconds / 60);
@@ -260,21 +225,7 @@ export default function CustomerTracking() {
         });
         socketRef.current = socket;
         socket.on("connect", () => socket.emit("join-order", orderId));
-
-        // socket.on("location-updated", (data) => {
-        //     if (data && typeof data.lat === "number" && typeof data.lng === "number") setDriverLocation(data);
-        //     else setDriverLocation(null);
-        // });
-
-    //     socket.on("location-updated", (data) => {
-    //     setDriverLocation(prev => {
-    //         if (!prev) return data;
-    //         if (!hasSignificantMovement(prev, data)) return prev;
-    //         return data;
-    //     });
-    // });
-
-    socket.on("location-updated", (data) => {
+        socket.on("location-updated", (data) => {
         if (!isValidLatLng(data)) return;
 
         setDriverLocation(prev => {
@@ -286,7 +237,7 @@ export default function CustomerTracking() {
 
 
 
-        socket.on("order-delivered", () => {
+        socket.on("delivery-complete", () => {
             setStatus("Order Status: Delivered! 🎉");
             setDriverLocation(null);
             setIsDeliveryComplete(true);
@@ -416,7 +367,7 @@ export default function CustomerTracking() {
                 </Box>
 
                 {/* Delivery Modal */}
-                <Modal open={isDeliveryComplete} onClose={() => setIsDeliveryComplete(false)}>
+                <Modal open={isDeliveryComplete} sx={{ zIndex: 2000 }} onClose={() => setIsDeliveryComplete(false)}>
                     <Paper sx={{ position: "absolute", top: "50%", left: "50%", transform: "translate(-50%, -50%)",
                         width: { xs: "85%", sm: 400 }, p: 4, textAlign: "center", borderRadius: 3,
                         boxShadow: 24, outline: 'none', }}>

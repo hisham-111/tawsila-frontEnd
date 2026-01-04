@@ -308,102 +308,54 @@ export default function CustomerForm() {
     const lngFilter = new KalmanFilter(0.0001, 0.01);
 
     // --- Submit Order ---
-//     const handleSubmit = async (e) => {
-//         e.preventDefault();
-//         if (isSubmitting) return;
-//         setIsSubmitting(true);
+    const handleSubmit = async (e) => {
+        e.preventDefault();
+        if (isSubmitting) return;
+        setIsSubmitting(true);
 
-//         if (!position) {
-//             alert("❌ Please select location");
-//             setIsSubmitting(false);
-//             return;
-//         }
-
-//         try {
-//             const requestId = crypto.randomUUID();
-//             const res = await api.post("/public/order/submit", {
-//                 customer: {
-//                     name: form.customer_name,
-//                     phone: form.customer_phone,
-//                     address: form.customer_address,
-//                     coords: position,
-//                 },
-//                 type_of_item: form.type_of_item,
-//                 requestId //  send requestId to backend
-
-//             });
-//             const newOrderNumber = res.data.order.order_number;
-//             setOrderNumber(newOrderNumber);
-//             setOpen(true);
-//             showNotification("✅ Order submitted successfully!", "success");
-
-//         } catch (err) {
-//             if (err.response?.status === 409) {
-//                 const existingOrderNumber = err.response.data.order_number;
-//                 setOrderNumber(existingOrderNumber);
-//                 setOpen(true);
-//                 showNotification("⚠️ This order was already submitted", "warning");
-//             } else if (err.response?.status === 400) {
-//                 const existingOrderNumber = err.response.data.order_number;
-//                 setOrderNumber(existingOrderNumber);
-//                 setOpen(true);
-//                 showNotification("⚠️ You already have an active order", "warning");
-//             } else {
-//                 showNotification("Failed to submit order");
-//                 console.error(err);
-//             }
-//         }
-//         finally {
-//                 setIsSubmitting(false);
-//             }
-// };
-
-
-const handleSubmit = async (e) => {
-    e.preventDefault();
-    if (isSubmitting) return;
-    setIsSubmitting(true);
-
-    if (!position) {
-        alert("❌ Please select location");
-        setIsSubmitting(false);
-        return;
-    }
-
-    try {
-        const requestId = crypto.randomUUID(); // always new
-        const res = await api.post("/public/order/submit", {
-            customer: {
-                name: form.customer_name,
-                phone: form.customer_phone,
-                address: form.customer_address,
-                coords: position,
-            },
-            type_of_item: form.type_of_item,
-            requestId
-        });
-
-        const newOrderNumber = res.data.order.order_number;
-        setOrderNumber(newOrderNumber);
-        setOpen(true);
-        showNotification("✅ Order submitted successfully!", "success");
-
-    } catch (err) {
-        if (err.response?.status === 400) {
-            // Active order exists
-            const existingOrderNumber = err.response.data.order_number;
-            setOrderNumber(existingOrderNumber);
-            setOpen(true);
-            showNotification("⚠️ You already have an active order", "warning");
-        } else {
-            showNotification("Failed to submit order");
-            console.error(err);
+        if (!position) {
+            alert("❌ Please select location");
+            setIsSubmitting(false);
+            return;
         }
-    } finally {
+
+        try {
+            const requestId = crypto.randomUUID();
+            const res = await api.post("/public/order/submit", {
+                customer: {
+                    name: form.customer_name,
+                    phone: form.customer_phone,
+                    address: form.customer_address,
+                    coords: position,
+                },
+                type_of_item: form.type_of_item,
+                requestId //  send requestId to backend
+
+            });
+            const newOrderNumber = res.data.order.order_number;
+            setOrderNumber(newOrderNumber);
+            setOpen(true);
+            showNotification("✅ Order submitted successfully!", "success");
+
+        } catch (err) {
+    if (err.response?.status === 409) {
+        const existingOrderNumber = err.response.data.order_number;
+        setOrderNumber(existingOrderNumber);
+        setOpen(true);
+        showNotification("⚠️ This order was already submitted", "warning");
+    } else if (err.response?.status === 400) {
+        const existingOrderNumber = err.response.data.order_number;
+        setOrderNumber(existingOrderNumber);
+        setOpen(true);
+        showNotification("⚠️ You already have an active order", "warning");
+    } else {
+        showNotification("Failed to submit order");
+        console.error(err);
+    }
+}finally {
         setIsSubmitting(false);
     }
 };
-
 
     useEffect(() => {
         const timer = setTimeout(() => setShowWelcome(false), 3000);
