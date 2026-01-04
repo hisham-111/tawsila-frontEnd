@@ -13,20 +13,51 @@ import Logo from "../assets/Logo.png";
 
 const SOCKET_URL = import.meta.env.VITE_BACKEND_URL || "https://tawsila-backend-0shs.onrender.com";
 
+const isValidLatLng = (loc) =>
+  loc &&
+  typeof loc.lat === "number" &&
+  typeof loc.lng === "number" &&
+  !Number.isNaN(loc.lat) &&
+  !Number.isNaN(loc.lng);
+
 // 🔹 MapController
+// function MapController({ driverLoc, customerLoc }) {
+//     const map = useMap();
+//     useEffect(() => {
+//         const points = [];
+
+//         if (driverLoc) points.push([driverLoc.lat, driverLoc.lng]);
+//         if (customerLoc) points.push([customerLoc.lat, customerLoc.lng]);
+
+//         if (points.length === 2) map.fitBounds(points, { padding: [40, 40], animate: true });
+//         else if (customerLoc) map.setView([customerLoc.lat, customerLoc.lng], 14, { animate: true });
+//     }, [driverLoc, customerLoc, map]);
+
+//     return null;
+// }
+
 function MapController({ driverLoc, customerLoc }) {
-    const map = useMap();
-    useEffect(() => {
-        const points = [];
-        if (driverLoc) points.push([driverLoc.lat, driverLoc.lng]);
-        if (customerLoc) points.push([customerLoc.lat, customerLoc.lng]);
+  const map = useMap();
 
-        if (points.length === 2) map.fitBounds(points, { padding: [40, 40], animate: true });
-        else if (customerLoc) map.setView([customerLoc.lat, customerLoc.lng], 14, { animate: true });
-    }, [driverLoc, customerLoc, map]);
+  useEffect(() => {
+    const points = [];
 
-    return null;
+    if (isValidLatLng(driverLoc))
+      points.push([driverLoc.lat, driverLoc.lng]);
+
+    if (isValidLatLng(customerLoc))
+      points.push([customerLoc.lat, customerLoc.lng]);
+
+    if (points.length === 2) {
+      map.fitBounds(points, { padding: [40, 40], animate: true });
+    } else if (points.length === 1) {
+      map.setView(points[0], 14, { animate: true });
+    }
+  }, [driverLoc, customerLoc, map]);
+
+  return null;
 }
+
 
 
 const hasSignificantMovement = (prev, next, threshold = 30) => {
@@ -235,13 +266,24 @@ export default function CustomerTracking() {
         //     else setDriverLocation(null);
         // });
 
-        socket.on("location-updated", (data) => {
+    //     socket.on("location-updated", (data) => {
+    //     setDriverLocation(prev => {
+    //         if (!prev) return data;
+    //         if (!hasSignificantMovement(prev, data)) return prev;
+    //         return data;
+    //     });
+    // });
+
+    socket.on("location-updated", (data) => {
+        if (!isValidLatLng(data)) return;
+
         setDriverLocation(prev => {
-            if (!prev) return data;
+            if (!isValidLatLng(prev)) return data;
             if (!hasSignificantMovement(prev, data)) return prev;
             return data;
         });
-    });
+        });
+
 
 
         socket.on("order-delivered", () => {
@@ -374,11 +416,35 @@ export default function CustomerTracking() {
                            </Box>
                           )}
 
-                    <MapContainer center={customerLocation ? [customerLocation.lat, customerLocation.lng] : [33.888, 35.495]} zoom={13} style={{ height: "100%", width: "100%" }}>
+                    {/* <MapContainer center={customerLocation ? [customerLocation.lat, customerLocation.lng] : [33.888, 35.495]} zoom={13} style={{ height: "100%", width: "100%" }}> */}
+                    <MapContainer
+                        center={
+                            isValidLatLng(customerLocation)
+                            ? [customerLocation.lat, customerLocation.lng]
+                            : [33.888, 35.495]
+                        }
+                        zoom={13}
+                        style={{ height: "100%", width: "100%" }}
+                        >
+
                         <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" attribution="&copy; OpenStreetMap contributors" />
-                        {customerLocation && <Marker position={[customerLocation.lat, customerLocation.lng]} icon={homeIcon}><Popup>{customerLocation.address || "Delivery Destination"}</Popup></Marker>}
-                        {driverLocation && <Marker position={[driverLocation.lat, driverLocation.lng]} icon={driverIcon}><Popup>{driverLocation.address || "Driver is here!"}</Popup></Marker>}
-                        {driverLocation && customerLocation && <Polyline positions={[[driverLocation.lat, driverLocation.lng], [customerLocation.lat, customerLocation.lng]]} color="blue" dashArray="10,10" opacity={0.6} />}
+                        {isValidLatLng (customerLocation) && ( <Marker position={[customerLocation.lat, customerLocation.lng]} icon={homeIcon}><Popup>{customerLocation.address || "Delivery Destination"}</Popup></Marker>)}
+                        {isValidLatLng(driverLocation) && ( <Marker position={[driverLocation.lat, driverLocation.lng]} icon={driverIcon}><Popup>{driverLocation.address || "Driver is here!"}</Popup></Marker>)}
+                        {/* {driverLocation && customerLocation && <Polyline positions={[[driverLocation.lat, driverLocation.lng], [customerLocation.lat, customerLocation.lng]]} color="blue" dashArray="10,10" opacity={0.6} />} */}
+
+                        {isValidLatLng(driverLocation) &&
+                        isValidLatLng(customerLocation) && (
+                        <Polyline
+                            positions={[
+                            [driverLocation.lat, driverLocation.lng],
+                            [customerLocation.lat, customerLocation.lng],
+                            ]}
+                            color="blue"
+                            dashArray="10,10"
+                            opacity={0.6}
+                        />
+                        )}
+
                         <MapController driverLoc={driverLocation} customerLoc={customerLocation} />
                     </MapContainer>
                 </Box>

@@ -4,7 +4,11 @@ import { motion } from "framer-motion";
 import { useNavigate } from "react-router-dom";
 import { Box, TextField, MenuItem, Button, Paper, Typography, Modal } from "@mui/material";
 import { MapContainer, TileLayer, Marker, useMap, Popup, useMapEvents } from "react-leaflet"; 
-import { OpenStreetMapProvider, GeoSearchControl } from "leaflet-geosearch"; 
+// import { OpenStreetMapProvider, GeoSearchControl } from "leaflet-geosearch"; 
+import { OpenStreetMapProvider } from "leaflet-geosearch";
+import * as GeoSearch from "leaflet-geosearch";
+
+
 import L from "leaflet";
 import api from "./api"; 
 import Logo from "../assets/Logo.png"; 
@@ -129,38 +133,89 @@ function MapClickHandler({ setPosition, setForm }) {
 
 
 // --- Search Control ---
+// function SearchControl({ setPosition, setForm }) {
+//     const map = useMap();
+
+//     useEffect(() => {
+//         const provider = new OpenStreetMapProvider();
+//         const searchControl = new GeoSearchControl({
+//             provider, 
+//             style: "bar", 
+//             showMarker: false, 
+//             retainZoomLevel: false,
+//             animateZoom: true, 
+//             autoClose: true, 
+//             searchLabel: "Enter full street or neighborhood name...", 
+//             keepResult: true,
+//         });
+
+//         map.addControl(searchControl);
+
+//         map.on("geosearch/showlocation", async (result) => {
+//             const { x, y, label } = result.location;
+//             const coords = { lat: y, lng: x };
+//             setPosition(coords);
+//             const address = await getAddress(coords.lat, coords.lng);
+//             setForm(prev => ({ ...prev, customer_address: address }));
+//             map.flyTo(coords, 17);
+//         });
+
+//         return () => map.removeControl(searchControl);
+//     }, [map, setPosition, setForm]);
+
+//     return null;
+// }
+
 function SearchControl({ setPosition, setForm }) {
-    const map = useMap();
+  const map = useMap();
 
-    useEffect(() => {
-        const provider = new OpenStreetMapProvider();
-        const searchControl = new GeoSearchControl({
-            provider, 
-            style: "bar", 
-            showMarker: false, 
-            retainZoomLevel: false,
-            animateZoom: true, 
-            autoClose: true, 
-            searchLabel: "Enter full street or neighborhood name...", 
-            keepResult: true,
-        });
+  useEffect(() => {
+    if (!map) return; // ✅ prevents crash on first render
 
-        map.addControl(searchControl);
+    const provider = new OpenStreetMapProvider();
 
-        map.on("geosearch/showlocation", async (result) => {
-            const { x, y, label } = result.location;
-            const coords = { lat: y, lng: x };
-            setPosition(coords);
-            const address = await getAddress(coords.lat, coords.lng);
-            setForm(prev => ({ ...prev, customer_address: address }));
-            map.flyTo(coords, 17);
-        });
+    const searchControl = new GeoSearch.GeoSearchControl({
+      provider,
+      style: "bar",
+      showMarker: false,
+      autoClose: true,
+      retainZoomLevel: false,
+      animateZoom: true,
+      searchLabel: "Enter full street or neighborhood name...",
+      keepResult: true,
+    });
 
-        return () => map.removeControl(searchControl);
-    }, [map, setPosition, setForm]);
+    map.addControl(searchControl);
 
-    return null;
+    const onShowLocation = async (result) => {
+      if (!result || !result.location) return;
+
+      const { x, y } = result.location;
+
+      // ✅ HARD PROTECTION (prevents black screen forever)
+      if (typeof x !== "number" || typeof y !== "number") return;
+
+      const coords = { lat: y, lng: x };
+      setPosition(coords);
+
+      const address = await getAddress(coords.lat, coords.lng);
+      setForm(prev => ({ ...prev, customer_address: address }));
+
+      map.flyTo(coords, 17);
+    };
+
+    map.on("geosearch/showlocation", onShowLocation);
+
+    return () => {
+      map.off("geosearch/showlocation", onShowLocation);
+      map.removeControl(searchControl);
+    };
+  }, [map, setPosition, setForm]);
+
+  return null;
 }
+
+
 
 // --- Marker مع سحب لتحديث العنوان ---
 function LocationSelector({ position, setPosition, setForm }) {
@@ -181,7 +236,15 @@ function LocationSelector({ position, setPosition, setForm }) {
 }), [setPosition, setForm]);
 
 
-    if (!position) return null;
+    // if (!position) return null;
+    if (
+    !position ||
+    typeof position.lat !== "number" ||
+    typeof position.lng !== "number"
+    ) {
+    return null;
+    }
+
 
     return (
         <Marker draggable eventHandlers={eventHandlers} position={position} ref={markerRef}>
@@ -194,8 +257,15 @@ function LocationSelector({ position, setPosition, setForm }) {
 function FlyToPosition({ position }) {
     const map = useMap();
     useEffect(() => {
-        if (position) map.flyTo(position, 17);
+    if (
+        position &&
+        typeof position.lat === "number" &&
+        typeof position.lng === "number"
+    ) {
+        map.flyTo(position, 17);
+    }
     }, [position, map]);
+
     return null;
 }
 
