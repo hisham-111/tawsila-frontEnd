@@ -10,6 +10,8 @@ import api from "./api";
 import Logo from "../assets/Logo.png"; 
 import Welcome from "../components/WelcomeCustomer";
 import { Snackbar, Alert } from "@mui/material";
+import  AIcustomerChatBot from "./AdminAIChatbot/aicustomerChatBot"
+
 
 
 // --- إصلاح أيقونات Leaflet ---
@@ -386,6 +388,7 @@ export default function CustomerForm() {
             </Alert>
         </Snackbar>
 
+        <AIcustomerChatBot /> 
         </>
     );
 }
